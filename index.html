@@ -7,29 +7,79 @@ window.onload = main;
 
 var lastfm = new LastFM('39c795e91c62cf9d469392c7c2648c80');
 
+var user;
+var realname;
+var register_date;
+
 function main() {
     document.getElementById('sandbox_form').onsubmit = function() { 
-        print_uri();
+        process();
         return false 
     };
 }
 
-function print_uri() {
-    var user = document.getElementById('user').value;
+function process() {
+    user = document.getElementById('user').value;
     
-    lastfm.get_user(user, function(result) {
-        var realname = result.user.realname;
-        var registered = result.user.registered.unixtime;
-        print(realname + " " + registered);
-    });
+    lastfm.get_user(user, get_user_callback);
     /*lastfm.get_history(user, from, to, function(uri) {
         window.open(uri);
         document.getElementById('output').innerHTML = uri;
     }); */   
 }
 
+function get_user_callback(result) {
+        realname = result.user.realname;
+        register_date = parseInt(result.user.registered.unixtime, 10);
+        lastfm.get_weeklycharts(user, get_weeklycharts_callback);
+}
+
+function get_weeklycharts_callback(result) {
+    var chart = result.weeklychartlist.chart;
+    /*for (var i = chart.length-1; i >= 0 &&
+            chart[i].to > register_date; i--) {
+        process_week(parseInt(chart[i].from, 10), 
+            parseInt(chart[i].to, 10));
+    }*/
+    
+    var i = chart.length-1;
+    function loop() {
+        setTimeout(function() {
+            process_week(chart[i].from, chart[i].to);
+            print('<br/>');
+            i--;
+            if (i >= 0 && chart[i].to > register_date) {
+                loop();
+            }
+        }, 1000);
+    }
+    
+    loop();
+    
+}
+
+function process_week(from, to) {
+    lastfm.get_weeklyartistchart(user, from, to, function(result) {
+        print(unix2localtime(from) + " - " + unix2localtime(to));
+        var artists = result.weeklyartistchart.artist;
+        for (var i = 0; i < artists.length; i++) {
+            print(artists[i].name + " " + artists[i].playcount);
+        }
+    });
+}
+
+function unix2localtime(time) {
+    time = parseInt(time, 10);
+    var date = new Date(time * 1000);
+    return date.toLocaleString();
+}
+
 function print(str) {
-    document.getElementById('output').innerHTML = str;
+    document.getElementById('output').innerHTML += str + '<br/>';
+}
+
+function clear_console() {
+    document.getElementById('output').innerHTML = '';
 }
 
 </script>
