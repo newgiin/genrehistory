@@ -1,0 +1,47 @@
+<html>
+<head>
+<title>test</title>
+<script src="lastfm.js"></script>
+<script type="text/javascript">
+window.onload = main;
+
+var lastfm = new LastFM('39c795e91c62cf9d469392c7c2648c80');
+
+function main() {
+    document.getElementById('sandbox_form').onsubmit = function() { 
+        print_uri();
+        return false 
+    };
+}
+
+function print_uri() {
+    var user = document.getElementById('user').value;
+    
+    lastfm.get_user(user, function(result) {
+        var realname = result.user.realname;
+        var registered = result.user.registered.unixtime;
+        print(realname + " " + registered);
+    });
+    /*lastfm.get_history(user, from, to, function(uri) {
+        window.open(uri);
+        document.getElementById('output').innerHTML = uri;
+    }); */   
+}
+
+function print(str) {
+    document.getElementById('output').innerHTML = str;
+}
+
+</script>
+
+</head>
+<body>
+    <form id='sandbox_form'>
+        user: <input type='text' id='user' name='user'></input><br/>
+        <input type='submit' value='go'></input>
+    </form>
+    <div id='output'>
+
+    </div>
+</body>
+</html>
