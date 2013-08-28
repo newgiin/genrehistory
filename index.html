@@ -1,8 +1,8 @@
 <html>
 <head>
 <title>test</title>
-<script src="lastfm.js"></script>
-<script type="text/javascript">
+<script src='lastfm.js'></script>
+<script type='text/javascript'>
 window.onload = main;
 
 var lastfm = new LastFM('39c795e91c62cf9d469392c7c2648c80');
@@ -23,10 +23,6 @@ function process() {
     user = document.getElementById('user').value;
     
     lastfm.get_user(user, get_user_callback);
-    /*lastfm.get_history(user, from, to, function(uri) {
-        window.open(uri);
-        document.getElementById('output').innerHTML = uri;
-    }); */   
 }
 
 function get_user_callback(result) {
@@ -37,39 +33,30 @@ function get_user_callback(result) {
 
 function get_weeklycharts_callback(result) {
     var chart = result.weeklychartlist.chart;
-    /*for (var i = chart.length-1; i >= 0 &&
-            chart[i].to > register_date; i--) {
-        process_week(parseInt(chart[i].from, 10), 
-            parseInt(chart[i].to, 10));
-    }*/
     
-    var i = chart.length-1;
-    function loop() {
-        setTimeout(function() {
-            process_week(chart[i].from, chart[i].to);
-            print('<br/>');
-            i--;
-            if (i >= 0 && chart[i].to > register_date) {
-                loop();
-            }
-        }, 1000);
-    }
-    
-    loop();
-    
+    process_week(chart.length-1, chart);
 }
 
-function process_week(from, to) {
+function process_week(week, chart) {
+    if (week < 0 || chart[week].to <= register_date) {
+        return;
+    }
+    
+    var from = chart[week].from;
+    var to = chart[week].to;
+    
     lastfm.get_weeklyartistchart(user, from, to, function(result) {
-        print(unix2localtime(from) + " - " + unix2localtime(to));
+        print(unix2localtime(from) + ' - ' + unix2localtime(to));
         var artists = result.weeklyartistchart.artist;
         var total = 0;
         
         for (var i = 0; i < artists.length; i++) {
-            print(artists[i].name + " " + artists[i].playcount);
+            print(artists[i].name + ' ' + artists[i].playcount);
             total += parseInt(artists[i].playcount, 10);
         }
-        print("Total: " + total);
+        print('Total: ' + total);
+        print('</br>')
+        setTimeout(function(){ process_week(week-1, chart) }, 1000);
     });
 }
 
