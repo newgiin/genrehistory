@@ -32,28 +32,11 @@ LastFM.prototype.get_user = function(user, callback) {
         });
 };
 
-LastFM.prototype.get_history = function(user, from, to, callback) {
-    var params = {
-        'api_key': this.API_KEY,
-        'method': 'user.getweeklyartistchart',
-        'user': user,
-        'from': from,
-        'to': to
-    };
-    
-    params.format = "json";
-    
-    this._xhr("GET", params, 
-        function(result) {
-            callback(result);
-        });
-};
-
 LastFM.prototype.get_weeklycharts = function(user, callback) {
     var params = {
         'api_key': this.API_KEY,
         'method': 'user.getweeklychartlist',
-        'user': user,
+        'user': user
     };
     
     params.format = "json";
