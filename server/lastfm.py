@@ -2,6 +2,7 @@
 import urllib2
 import urllib
 import json
+import logging
 from google.appengine.api import urlfetch
 
 class LastFm:
@@ -59,7 +60,9 @@ class LastFm:
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded'
         }
-        print url
+        
+        logging.debug(url)
+
         result = urlfetch.fetch(url=url, 
              method=urlfetch.GET, headers=headers)
 
