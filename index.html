@@ -55,7 +55,7 @@ function process_week(week, chart) {
             total += parseInt(artists[i].playcount, 10);
         }
         print('Total: ' + total);
-        print('</br>')
+        print('<br/>')
         setTimeout(function(){ process_week(week-1, chart) }, 1000);
     });
 }

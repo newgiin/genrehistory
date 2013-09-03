@@ -62,7 +62,7 @@ class GenreService(webapp2.RequestHandler):
         register_date = int(user_data['registered']['unixtime'])
 
         weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
-        result['last_updated':]
+
         for week in reversed(weeks):
             if int(week['to']) <= register_date:
                 break
@@ -93,7 +93,7 @@ class GenreService(webapp2.RequestHandler):
             sleep(.2)
 
         print 'NUM ARTISTS: ' + str(memcache.get_stats())
-        self.response.write(json.dumps(result))
+        self.response.write(json.dumps(result, allow_nan=False))
 
 application = webapp2.WSGIApplication([
     ('/', GenreService),
