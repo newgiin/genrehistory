@@ -21,15 +21,21 @@ function process() {
 }
 
 function render(data, status, jqXHR) {
-    print(data.user + '<br/><br/>');
-    for (var i = 0; i < data.weeks.length; i++) {
-        week = data.weeks[i];
-        print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
-        for (var j = 0; j < week.tags.length; j++) {
-            tag = week.tags[j];
-            print(tag.tag + ' ' + tag.plays);
+    if (data.error) {
+        print(data.error); 
+    } else if (data.status) {
+        print(data.status); 
+    } else {
+        print(data.user + '<br/><br/>');
+        for (var i = 0; i < data.weeks.length; i++) {
+            week = data.weeks[i];
+            print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
+            for (var j = 0; j < week.tags.length; j++) {
+                tag = week.tags[j];
+                print(tag.tag + ' ' + tag.plays);
+            }
+            print('<br/>');
         }
-        print('<br/>');
     }
 }
 

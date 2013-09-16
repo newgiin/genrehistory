@@ -3,8 +3,8 @@ import webapp2
 import lastfm
 import json
 import logging
-from google.appengine.api import memcache
-from google.appengine.ext import ndb
+from google.appengine.api import memcache, taskqueue
+from google.appengine.ext import ndb, db
 from time import sleep
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
@@ -68,8 +68,12 @@ class GenreService(webapp2.RequestHandler):
             self.response.write(
                 json.dumps({'error': 'No user specified.'}))
             return
-            
-        weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
+        gwi_json = lfm_api.user_getweekintervals(user)
+        weeks = None
+        if 'error' in gwi_json:
+            self.response.write(json.dumps({'error': 'User does not exist.'}))
+            return
+        weeks = gwi_json['weeklychartlist']['chart']
         
         user_entity = User.get_by_id(user)
         if (user_entity is not None 
@@ -77,6 +81,20 @@ class GenreService(webapp2.RequestHandler):
             logging.debug('Got from datastore!')
             self.response.write(user_entity.data)
         else:
+            # TODO Check if task already in queue
+            try:
+                taskqueue.add(url='/worker', name=user, params={'user': user})
+            except taskqueue.TaskAlreadyExistsError:
+                pass
+            self.response.write(
+                json.dumps({'status': 'Data still processing'}))
+
+class GenreWorker(webapp2.RequestHandler):
+    def post(self):
+        user = self.request.get('user')
+        def txn():
+            weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
+            user_entity = User.get_by_id(user)
             result = { 'weeks': [] }
             date_floor = None
             if user_entity is None:
@@ -130,8 +148,9 @@ class GenreService(webapp2.RequestHandler):
                 data=json_result)
             user_entity.put()
             
-            self.response.write(json_result)
+        db.run_in_transaction(txn)
 
 application = webapp2.WSGIApplication([
     ('/data', GenreService),
+    ('/worker', GenreWorker)
 ], debug=True)
