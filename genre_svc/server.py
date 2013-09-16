@@ -17,7 +17,7 @@ class User(ndb.Model):
 class GenreService(webapp2.RequestHandler):
     TAGS_PER_ARTIST = 3
     CACHE_PRD = 86400 # 1 day
-    PLAY_THRESHOLD = 2
+    PLAY_THRESHOLD = 5
 
     def get_weeklyartists(self, user, start, end):
         weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
@@ -26,7 +26,13 @@ class GenreService(webapp2.RequestHandler):
             logging.error('Error getting top artists for %s in week %s-%s' % 
                 (user, start, end))
         elif 'artist' in weekly_artists['weeklyartistchart']:
-            artists = weekly_artists['weeklyartistchart']['artist']
+            if isinstance(
+                    weekly_artists['weeklyartistchart']['artist'], list
+                ):
+                artists = weekly_artists['weeklyartistchart']['artist']
+            else:
+                artist = [weekly_artists['weeklyartistchart']['artist']]
+
         return artists
 
     def get_artisttags(self, artist, mbid, limit=5):
@@ -85,8 +91,8 @@ class GenreService(webapp2.RequestHandler):
                     break
                     
                 week_elem = {'from': week['from'], 
-                    'to': week['to'], 'tags':{}}
-
+                    'to': week['to'], 'tags':[]}
+                tags = {}
                 artists = self.get_weeklyartists(user, week['from'], week['to'])
 
                 for artist in artists:
@@ -96,14 +102,15 @@ class GenreService(webapp2.RequestHandler):
                        self.TAGS_PER_ARTIST)
 
                     for tag in top_tags:
-                        if tag in week_elem['tags']:
-                            week_elem['tags'][tag] += int(artist['playcount'])
+                        if tag in tags:
+                            tags[tag] += int(artist['playcount'])
                         else:
-                            week_elem['tags'][tag] = int(artist['playcount'])
+                            tags[tag] = int(artist['playcount'])
 
-                week_elem['tags'] = \
-                    {k:v for k,v in week_elem['tags'].items() 
-                        if v > self.PLAY_THRESHOLD}
+                week_elem['tags'] = [{'tag': k, 'plays': v} \
+                                        for k,v in tags.items() \
+                                        if v > self.PLAY_THRESHOLD]
+                week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
 
                 result['weeks'].append(week_elem)
                 #break
@@ -126,5 +133,5 @@ class GenreService(webapp2.RequestHandler):
             self.response.write(json_result)
 
 application = webapp2.WSGIApplication([
-    ('/', GenreService),
+    ('/data', GenreService),
 ], debug=True)

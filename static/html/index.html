@@ -1,0 +1,68 @@
+<html>
+<head>
+<title>test</title>
+<script src='/js/jquery-1.10.2.min.js'></script>
+<script type='text/javascript'>
+window.onload = main;
+
+var user;
+
+function main() {
+    document.getElementById('user_form').onsubmit = function() { 
+        process();
+        return false 
+    };
+}
+
+function process() {
+    clear_console();
+    user = document.getElementById('user').value;
+    $.getJSON('/data?user=' + user).done(render).fail(disp_error);
+}
+
+function render(data, status, jqXHR) {
+    print(data.user + '<br/><br/>');
+    for (var i = 0; i < data.weeks.length; i++) {
+        week = data.weeks[i];
+        print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
+        for (var j = 0; j < week.tags.length; j++) {
+            tag = week.tags[j];
+            print(tag.tag + ' ' + tag.plays);
+        }
+        print('<br/>');
+    }
+}
+
+function disp_error(jqxhr, textStatus, error) {
+    alert(textStatus + ': ' + error);
+}
+
+function unix2localtime(time) {
+    time = parseInt(time, 10);
+    var date = new Date(time * 1000);
+    return date.toLocaleString();
+}
+
+function print(str) {
+    var div = document.createElement('div');
+    div.innerHTML = str;
+    document.getElementById('output').appendChild(div);
+}
+
+function clear_console() {
+    document.getElementById('output').innerHTML = '';
+}
+
+</script>
+
+</head>
+<body>
+    <form id='user_form'>
+        user: <input type='text' id='user' name='user'></input><br/>
+        <input type='submit' value='go'></input>
+    </form>
+    <div id='output'>
+    
+    </div>
+</body>
+</html>
