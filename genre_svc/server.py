@@ -8,6 +8,50 @@ from google.appengine.ext import ndb, db
 from time import sleep
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
+CACHE_PRD = 86400 # 1 day
+TAGS_PER_ARTIST = 3
+PLAY_THRESHOLD = 5
+
+def get_weeklyartists(user, start, end):
+    weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
+    artists = {}
+    if 'error' in weekly_artists:
+        logging.error('Error getting top artists for %s in week %s-%s' % 
+            (user, start, end))
+    elif 'artist' in weekly_artists['weeklyartistchart']:
+        if isinstance(
+                weekly_artists['weeklyartistchart']['artist'], list
+            ):
+            artists = weekly_artists['weeklyartistchart']['artist']
+        else:
+            artist = [weekly_artists['weeklyartistchart']['artist']]
+
+    return artists
+
+def get_artisttags(artist, mbid, limit=5):
+    top_tags = memcache.get(artist)
+    if top_tags is None:
+        top_tags = []
+        toptags_json = lfm_api.artist_gettoptags(artist, 
+            mbid)
+
+        if 'error' in toptags_json :
+            logging.error('Error getting tag data for %s[%s]' 
+                % (artist, mbid))
+        elif 'tag' in toptags_json['toptags']:
+            tags = toptags_json['toptags']['tag']
+            if isinstance(tags, list):
+                top_tags = [
+                    e['name'] for e in 
+                    tags[0:min(limit, len(tags))]
+                ]
+            else:
+                top_tags = [tags['name']]
+
+        memcache.add(artist, top_tags, CACHE_PRD)
+        sleep(.2)
+
+    return top_tags
 
 class User(ndb.Model):
     name = ndb.StringProperty()
@@ -15,51 +59,6 @@ class User(ndb.Model):
     data = ndb.JsonProperty()
     
 class GenreService(webapp2.RequestHandler):
-    TAGS_PER_ARTIST = 3
-    CACHE_PRD = 86400 # 1 day
-    PLAY_THRESHOLD = 5
-
-    def get_weeklyartists(self, user, start, end):
-        weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
-        artists = {}
-        if 'error' in weekly_artists:
-            logging.error('Error getting top artists for %s in week %s-%s' % 
-                (user, start, end))
-        elif 'artist' in weekly_artists['weeklyartistchart']:
-            if isinstance(
-                    weekly_artists['weeklyartistchart']['artist'], list
-                ):
-                artists = weekly_artists['weeklyartistchart']['artist']
-            else:
-                artist = [weekly_artists['weeklyartistchart']['artist']]
-
-        return artists
-
-    def get_artisttags(self, artist, mbid, limit=5):
-        top_tags = memcache.get(artist)
-        if top_tags is None:
-            top_tags = []
-            toptags_json = lfm_api.artist_gettoptags(artist, 
-                mbid)
-
-            if 'error' in toptags_json :
-                logging.error('Error getting tag data for %s[%s]' 
-                    % (artist, mbid))
-            elif 'tag' in toptags_json['toptags']:
-                tags = toptags_json['toptags']['tag']
-                if isinstance(tags, list):
-                    top_tags = [
-                        e['name'] for e in 
-                        tags[0:min(limit, len(tags))]
-                    ]
-                else:
-                    top_tags = [tags['name']]
-
-            memcache.add(artist, top_tags, self.CACHE_PRD)
-            sleep(.2)
-
-        return top_tags
-
     def get(self):
         self.response.headers['Content-Type'] = 'application/json'
         
@@ -83,7 +82,8 @@ class GenreService(webapp2.RequestHandler):
         else:
             # TODO Check if task already in queue
             try:
-                taskqueue.add(url='/worker', name=user, params={'user': user})
+                taskqueue.add(url='/worker', name=user+'-'+weeks[-1]['to'], 
+                    params={'user': user})
             except taskqueue.TaskAlreadyExistsError:
                 pass
             self.response.write(
@@ -111,13 +111,13 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem = {'from': week['from'], 
                     'to': week['to'], 'tags':[]}
                 tags = {}
-                artists = self.get_weeklyartists(user, week['from'], week['to'])
+                artists = get_weeklyartists(user, week['from'], week['to'])
 
                 for artist in artists:
                     artist_name = artist['name']
 
-                    top_tags = self.get_artisttags(artist_name, artist['mbid'],
-                       self.TAGS_PER_ARTIST)
+                    top_tags = get_artisttags(artist_name, artist['mbid'],
+                       TAGS_PER_ARTIST)
 
                     for tag in top_tags:
                         if tag in tags:
@@ -127,7 +127,7 @@ class GenreWorker(webapp2.RequestHandler):
 
                 week_elem['tags'] = [{'tag': k, 'plays': v} \
                                         for k,v in tags.items() \
-                                        if v > self.PLAY_THRESHOLD]
+                                        if v > PLAY_THRESHOLD]
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
 
                 result['weeks'].append(week_elem)
@@ -146,6 +146,7 @@ class GenreWorker(webapp2.RequestHandler):
                 name=user, 
                 last_updated=int(weeks[-1]['to']),
                 data=json_result)
+
             user_entity.put()
             
         db.run_in_transaction(txn)

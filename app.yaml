@@ -10,6 +10,9 @@ handlers:
 # Script handlers
 - url: /data.*
   script: genre_svc.server.application
+- url: /worker
+  script: genre_svc.server.application
+  login: admin
 
 # Static files mapped below
 - url: /(.*\.(appcache|manifest))
