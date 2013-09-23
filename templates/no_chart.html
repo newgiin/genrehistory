@@ -1,0 +1,67 @@
+<html>
+<head>
+    <title>test</title>
+{% if user is defined %}
+    <script src='/js/jquery-1.10.2.min.js'></script>
+    <script type='text/javascript'>
+    window.onload = process;
+
+    var user = '{{ user }}';
+
+    function process() {
+        $('#usr_input').val(user);
+        $.getJSON('/data?user=' + user).done(render).fail(disp_error);
+    }
+
+    function render(data, status, jqXHR) {
+        if (data.error) {
+            print(data.error); 
+        } else if (data.status) {
+            print(data.status); 
+        } else {
+            print(data.user + '<br/><br/>');
+            for (var i = 0; i < data.weeks.length; i++) {
+                week = data.weeks[i];
+                print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
+                for (var j = 0; j < week.tags.length; j++) {
+                    tag = week.tags[j];
+                    print(tag.tag + ' ' + tag.plays);
+                }
+                print('<br/>');
+            }
+        }
+    }
+
+    function disp_error(jqxhr, textStatus, error) {
+        alert(textStatus + ': ' + error);
+    }
+
+    function unix2localtime(time) {
+        time = parseInt(time, 10);
+        var date = new Date(time * 1000);
+        return date.toLocaleString();
+    }
+
+    function print(str) {
+        var div = document.createElement('div');
+        div.innerHTML = str;
+        document.getElementById('output').appendChild(div);
+    }
+
+    function clear_console() {
+        document.getElementById('output').innerHTML = '';
+    }
+
+    </script>
+{% endif %}
+</head>
+<body>
+    <form id='user_form' method='get' action='/no_chart'>
+        user: <input type='text' id='usr_input' name='user'></input><br/>
+        <input type='submit' value='go'></input>
+    </form>
+    <div id='output'>
+    
+    </div>
+</body>
+</html>

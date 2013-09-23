@@ -9,10 +9,20 @@ default_expiration: "10m"
 handlers:
 # Script handlers
 - url: /data.*
-  script: genre_svc.server.application
+  script: genre_svc.server.app
+
 - url: /worker
-  script: genre_svc.server.application
+  script: genre_svc.server.app
   login: admin
+
+- url: /
+  script: index.app
+
+- url: /index.html
+  script: index.app
+
+- url: /no_chart.*
+  script: no_chart.app
 
 # Static files mapped below
 - url: /(.*\.(appcache|manifest))
@@ -189,10 +199,10 @@ handlers:
   expiration: "15m"
  
 # site root
-- url: /
-  static_files: static/html/index.html
-  upload: static/html/index.html
-  expiration: "15m"
+# - url: /
+#   static_files: static/html/index.html
+#   upload: static/html/index.html
+#   expiration: "15m"
 
 
 libraries:

@@ -63,12 +63,13 @@ class GenreService(webapp2.RequestHandler):
         self.response.headers['Content-Type'] = 'application/json'
         
         user = self.request.get('user')
+
         if not user:
             self.response.write(
                 json.dumps({'error': 'No user specified.'}))
             return
+        
         gwi_json = lfm_api.user_getweekintervals(user)
-        weeks = None
         if 'error' in gwi_json:
             self.response.write(json.dumps({'error': 'User does not exist.'}))
             return
@@ -77,12 +78,24 @@ class GenreService(webapp2.RequestHandler):
         user_entity = User.get_by_id(user)
         if (user_entity is not None 
                 and user_entity.last_updated >= int(weeks[-1]['to'])):
-            logging.debug('Got from datastore!')
-            self.response.write(user_entity.data)
+            if self.request.get('max_tpw'):
+                try:
+                    # Trim number of genres per week
+                    max_tpw = int(self.request.get('max_tpw'))
+                    user_json = json.loads(user_entity.data) 
+                    for week in user_json['weeks']:
+                        week['tags'] = \
+                            week['tags'][:min(len(week['tags']), max_tpw)]
+                    self.response.write(json.dumps(user_json))
+                except ValueError:
+                    self.reponse.write(user_entity.data)
+            else:
+                self.response.write(user_entity.data)
         else:
             # TODO Check if task already in queue
             try:
-                taskqueue.add(url='/worker', name=user+'-'+weeks[-1]['to'], 
+                taskqueue.add(url='/worker', 
+                    name=user + '-' + weeks[-1]['to'], 
                     params={'user': user})
             except taskqueue.TaskAlreadyExistsError:
                 pass
@@ -92,15 +105,16 @@ class GenreService(webapp2.RequestHandler):
 class GenreWorker(webapp2.RequestHandler):
     def post(self):
         user = self.request.get('user')
+
         def txn():
             weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
             user_entity = User.get_by_id(user)
-            result = { 'weeks': [] }
+            result = {'user': user, 'weeks': []}
             date_floor = None
+
             if user_entity is None:
                 user_data = lfm_api.user_getinfo(user)['user']
                 date_floor = int(user_data['registered']['unixtime'])
-                result['user'] = user
             else:
                 date_floor = user_entity.last_updated
             
@@ -131,17 +145,15 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
 
                 result['weeks'].append(week_elem)
-                #break
                 sleep(.2)
             
             if user_entity is not None:
                 # prepend new history to old history
                 old_json = json.loads(user_entity.data)
-                old_json['weeks'] = result['weeks'] + old_json['weeks']
-                result = old_json
+                result['weeks'] += old_json['weeks']
                 
             json_result = json.dumps(result, allow_nan=False)
-            # Store user in database
+
             user_entity = User(key=ndb.Key(User, user), 
                 name=user, 
                 last_updated=int(weeks[-1]['to']),
@@ -151,7 +163,7 @@ class GenreWorker(webapp2.RequestHandler):
             
         db.run_in_transaction(txn)
 
-application = webapp2.WSGIApplication([
+app = webapp2.WSGIApplication([
     ('/data', GenreService),
     ('/worker', GenreWorker)
 ], debug=True)
