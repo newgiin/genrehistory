@@ -15,14 +15,11 @@ handlers:
   script: genre_svc.server.app
   login: admin
 
-- url: /
-  script: index.app
+- url: /graph
+  script: graph.app
 
-- url: /index.html
-  script: index.app
-
-- url: /no_chart.*
-  script: no_chart.app
+- url: /list
+  script: list.app
 
 # Static files mapped below
 - url: /(.*\.(appcache|manifest))
@@ -199,10 +196,10 @@ handlers:
   expiration: "15m"
  
 # site root
-# - url: /
-#   static_files: static/html/index.html
-#   upload: static/html/index.html
-#   expiration: "15m"
+- url: /
+  static_files: static/html/index.html
+  upload: static/html/index.html
+  expiration: "15m"
 
 
 libraries:

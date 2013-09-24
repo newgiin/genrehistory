@@ -1,7 +1,6 @@
 <html>
 <head>
     <title>test</title>
-{% if user is defined %}
     <script src='/js/jquery-1.10.2.min.js'></script>
     <script type='text/javascript'>
     window.onload = process;
@@ -20,7 +19,9 @@
         } else if (data.status) {
             print(data.status); 
         } else {
-            print(data.user + '<br/><br/>');
+            print('<a href="http://www.last.fm/user/' + data.user +
+                    '" target="_blank">' 
+                    + data.user + '</a><br/><br/>');
             for (var i = 0; i < data.weeks.length; i++) {
                 week = data.weeks[i];
                 print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
@@ -54,7 +55,6 @@
     }
 
     </script>
-{% endif %}
 </head>
 <body>
     <form id='user_form' method='get' action='/'>
