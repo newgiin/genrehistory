@@ -54,7 +54,6 @@ def get_artisttags(artist, mbid, limit=5):
     return top_tags
 
 class User(ndb.Model):
-    name = ndb.StringProperty()
     last_updated = ndb.IntegerProperty()
     data = ndb.JsonProperty()
     
@@ -88,7 +87,7 @@ class GenreService(webapp2.RequestHandler):
                             week['tags'][:min(len(week['tags']), max_tpw)]
                     self.response.write(json.dumps(user_json))
                 except ValueError:
-                    self.reponse.write(user_entity.data)
+                    self.response.write(user_entity.data)
             else:
                 self.response.write(user_entity.data)
         else:
@@ -155,7 +154,6 @@ class GenreWorker(webapp2.RequestHandler):
             json_result = json.dumps(result, allow_nan=False)
 
             user_entity = User(key=ndb.Key(User, user), 
-                name=user, 
                 last_updated=int(weeks[-1]['to']),
                 data=json_result)
 
