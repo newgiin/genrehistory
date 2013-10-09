@@ -13,15 +13,12 @@
     }
 
     function render(data, status, jqXHR) {
+        clear_console();
         if (data.error) {
             print(data.error); 
         } else if (data.status) {
             print(data.status); 
         } else {
-            print('<a href="http://www.last.fm/user/' + data.user + 
-                '" target="_blank">' + 
-                data.user + '</a><br/><br/>');
-
             for (var i = 0; i < data.weeks.length; i++) {
                 week = data.weeks[i];
                 print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
@@ -61,8 +58,10 @@
         user: <input type='text' id='usr_input' name='user'></input><br/>
         <input type='submit' value='go'></input>
     </form>
+    <a href="http://www.last.fm/user/{{user}}">{{user}}</a>
+    <br/><br/>
     <div id='output'>
-    
+        Getting data...    
     </div>
 </body>
 </html>
