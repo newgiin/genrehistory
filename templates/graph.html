@@ -2,6 +2,7 @@
 <head>
     <title>test</title>
     <script src='/js/jquery-1.10.2.min.js'></script>
+    <script type="text/javascript" src="/js/highcharts.js"></script>
     <script type='text/javascript'>
     window.onload = process;
 
@@ -14,21 +15,60 @@
     }
 
     function render(data, status, jqXHR) {
-        clear_console();
         if (data.error) {
-            print(data.error); 
+            document.getElementById('chart').innerHTML = data.error;
         } else if (data.status) {
-            print(data.status); 
+            document.getElementById('chart').innerHTML = data.status;
         } else {
-            for (var i = 0; i < data.weeks.length; i++) {
-                week = data.weeks[i];
-                print(unix2localtime(week.from) + ' - ' + unix2localtime(week.to));
-                for (var j = 0; j < week.tags.length; j++) {
-                    tag = week.tags[j];
-                    print(tag.tag + ' ' + tag.plays);
-                }
-                print('<br/>');
+            var tags = {}
+            for (var w_i = data.weeks.length-1; w_i >= 0; w_i--) {
+                var week = data.weeks[w_i];
+                for (var t_i = 0; t_i < week.tags.length; t_i++) {
+                    var tag_obj = week.tags[t_i];
+                    if (tags[tag_obj.tag]) {
+                        tags[tag_obj.tag].push([parseInt(week.from) * 1000, 
+                                parseInt(tag_obj.plays)]) 
+                    } else {
+                        tags[tag_obj.tag] = [[parseInt(week.from) * 1000, 
+                            parseInt(tag_obj.plays)]]
+                    }
+                }        
             }
+
+            var series = [];
+            for (var tag in tags) {
+                series.push({
+                    name: tag, 
+                    data: tags[tag],
+                    step: 'right',
+                    pointInterval: 7 * 24 * 3600 * 1000
+                });
+            }
+
+            $(function () {
+                $('#chart').highcharts({
+                    title: {
+                        text: 'Genre data for andruun'
+                    },
+                    chart: {
+                        zoomType: 'x'
+                    },
+                    xAxis: {
+                        type: 'datetime',
+                        dateTimeLabelFormats: {
+                            week: '%e. %b'
+                        },
+                        maxZoom: 7 * 24 * 3600 * 1000
+                    },
+                    yAxis: {
+                        title: {
+                            text: 'Listens' 
+                        },
+                        min: 0
+                    },
+                    series: series
+                    });
+           });
         }
     }
 
@@ -41,17 +81,6 @@
         var date = new Date(time * 1000);
         return date.toLocaleString();
     }
-
-    function print(str) {
-        var div = document.createElement('div');
-        div.innerHTML = str;
-        document.getElementById('output').appendChild(div);
-    }
-
-    function clear_console() {
-        document.getElementById('output').innerHTML = '';
-    }
-
     </script>
 </head>
 <body>
@@ -61,8 +90,8 @@
     </form>
     <a href="http://www.last.fm/user/{{user}}">{{user}}</a>
     <br/><br/>
-    <div id='output'>
-        Getting data... 
+    <div id='chart'>
+        Getting data...
     </div>
 </body>
 </html>

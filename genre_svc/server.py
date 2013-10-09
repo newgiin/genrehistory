@@ -5,12 +5,13 @@ import json
 import logging
 from google.appengine.api import memcache, taskqueue
 from google.appengine.ext import ndb, db
-from time import sleep
+import time
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 CACHE_PRD = 86400 # 1 day
 TAGS_PER_ARTIST = 3
 PLAY_THRESHOLD = 5
+
 
 def get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
@@ -49,7 +50,7 @@ def get_artisttags(artist, mbid, limit=5):
                 top_tags = [tags['name']]
 
         memcache.add(artist, top_tags, CACHE_PRD)
-        sleep(.2)
+        time.sleep(.2)
 
     return top_tags
 
@@ -79,7 +80,7 @@ class GenreService(webapp2.RequestHandler):
                 and user_entity.last_updated >= int(weeks[-1]['to'])):
             if self.request.get('max_tpw'):
                 try:
-                    # Trim number of genres per week
+                    # Trim number of tags per week
                     max_tpw = int(self.request.get('max_tpw'))
                     user_json = json.loads(user_entity.data) 
                     for week in user_json['weeks']:
@@ -106,6 +107,7 @@ class GenreWorker(webapp2.RequestHandler):
         user = self.request.get('user')
 
         def txn():
+            start = time.time()
             weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
             user_entity = User.get_by_id(user)
             result = {'user': user, 'weeks': []}
@@ -144,7 +146,7 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
 
                 result['weeks'].append(week_elem)
-                sleep(.2)
+                time.sleep(.2)
             
             if user_entity is not None:
                 # prepend new history to old history
@@ -158,6 +160,7 @@ class GenreWorker(webapp2.RequestHandler):
                 data=json_result)
 
             user_entity.put()
+            logging.debug(user + ' took: ' + str(time.time() - start) + ' seconds.')
             
         db.run_in_transaction(txn)
 
