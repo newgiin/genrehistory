@@ -9,7 +9,7 @@ import time
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 CACHE_PRD = 86400 # 1 day
-TAGS_PER_ARTIST = 3
+TAGS_PER_ARTIST = 1
 PLAY_THRESHOLD = 5
 
 

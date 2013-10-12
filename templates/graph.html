@@ -40,7 +40,7 @@
                 series.push({
                     name: tag, 
                     data: tags[tag],
-                    step: 'right',
+                    step: 'left',
                     pointInterval: 7 * 24 * 3600 * 1000
                 });
             }
@@ -54,6 +54,7 @@
                         zoomType: 'x'
                     },
                     xAxis: {
+                        startOfWeek: 0,
                         type: 'datetime',
                         dateTimeLabelFormats: {
                             week: '%e. %b'
@@ -65,6 +66,19 @@
                             text: 'Listens' 
                         },
                         min: 0
+                    },
+                    tooltip: {
+                        useHTML: true,
+                        crosshairs: true,
+                        formatter: function() {
+                            return '<b>' + this.series.name + '</b><br/>' +
+                                'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' + 
+                                this.series.name + ': ' + this.y + '<br/>' +
+                                '<a href="http://www.last.fm/user/' + user + '/charts?charttype=weekly&subtype=artist&range=' + this.x/1000 + '-' + (this.x/1000 + 604800) + '" target="_blank">view artist chart</a>';
+                        },
+                        positioner: function(boxWidth, boxHeight, point) { 
+                            return {x:point.plotX, y:point.plotY - 50}; 
+                        }
                     },
                     series: series
                     });
