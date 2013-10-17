@@ -16,8 +16,8 @@ def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
     artists = {}
     if 'error' in weekly_artists:
-        logging.error('Error getting top artists for %s in week %s-%s' % 
-            (user, start, end))
+        logging.error('Error getting top artists for %s in week %s-%s: %s' % 
+            (user, start, end, weekly_artists['error']))
     elif 'artist' in weekly_artists['weeklyartistchart']:
         if isinstance(
                 weekly_artists['weeklyartistchart']['artist'], list
@@ -36,8 +36,8 @@ def _get_artisttags(artist, mbid, limit=5):
             mbid)
 
         if 'error' in toptags_json :
-            logging.error('Error getting tag data for %s[%s]' 
-                % (artist, mbid))
+            logging.error('Error getting tag data for %s[%s]: %s' 
+                % (artist, mbid, toptags_json['error']))
         elif 'tag' in toptags_json['toptags']:
             tags = toptags_json['toptags']['tag']
             if isinstance(tags, list):
@@ -49,9 +49,31 @@ def _get_artisttags(artist, mbid, limit=5):
                 top_tags = [tags['name']]
 
         memcache.add(artist, top_tags, CACHE_PRD)
-        time.sleep(.2)
+        #time.sleep(.2)
 
     return top_tags
+
+class _Quota:
+    period = 300
+    req_limit = 1500
+    
+    class QuotaRun:
+        def __init__(self, can_reset, ret_val):
+            self.can_reset = can_reset
+            self.ret_val = ret_val
+
+    @staticmethod
+    def run_with_quota(num_reqs, next_interval, f):
+        now = time.time()
+        can_reset = False
+        if num_reqs >= _Quota.req_limit or now >= next_interval:
+            if num_reqs >= _Quota.req_limit:
+                logging.debug('Reached request limit, waiting: ' + 
+                    str(next_interval - now) + 'seconds.')
+                time.sleep(next_interval - now)    
+            can_reset = True
+
+        return _Quota.QuotaRun(can_reset, f())
 
 class GenreWorker(webapp2.RequestHandler):
     def post(self):
@@ -59,7 +81,9 @@ class GenreWorker(webapp2.RequestHandler):
 
         def txn():
             start = time.time()
-            weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
+            next_interval = time.time() + _Quota.period
+            curr_reqs = 0
+
             user_entity = models.User.get_by_id(user)
             result = {'user': user, 'weeks': []}
             date_floor = None
@@ -70,6 +94,8 @@ class GenreWorker(webapp2.RequestHandler):
             else:
                 date_floor = user_entity.last_updated
             
+            weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
+
             for week in reversed(weeks):
                 if int(week['to']) <= date_floor:
                     break
@@ -77,15 +103,29 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem = {'from': week['from'], 
                     'to': week['to'], 'tags':[]}
                 tags = {}
-                artists = _get_weeklyartists(user, week['from'], week['to'])
+
+                quota_run = _Quota.run_with_quota(curr_reqs, next_interval,
+                    lambda: _get_weeklyartists(user, week['from'], week['to']))
+                artists = quota_run.ret_val
+                if quota_run.can_reset:
+                    curr_reqs = 0
+                    next_interval = time.time() + _Quota.period
+                curr_reqs += 1
 
                 for artist in artists:
                     artist_name = artist['name']
 
-                    top_tags = _get_artisttags(artist_name, artist['mbid'],
-                       TAGS_PER_ARTIST)
+                    quota_run = _Quota.run_with_quota(
+                        curr_reqs, next_interval,
+                        lambda: _get_artisttags(artist_name, artist['mbid'], 
+                            TAGS_PER_ARTIST))
+                    artist_tags = quota_run.ret_val
+                    if quota_run.can_reset:
+                        curr_reqs = 0
+                        next_interval = time.time() + _Quota.period
+                    curr_reqs += 1
 
-                    for tag in top_tags:
+                    for tag in artist_tags:
                         if tag in tags:
                             tags[tag] += int(artist['playcount'])
                         else:
@@ -97,7 +137,7 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
 
                 result['weeks'].append(week_elem)
-                time.sleep(.2)
+                #time.sleep(.2)
             
             if user_entity is not None:
                 # prepend new history to old history
