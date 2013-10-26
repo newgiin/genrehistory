@@ -20,7 +20,7 @@
         } else if (data.status) {
             document.getElementById('chart').innerHTML = data.status;
         } else {
-            var tags = {}
+            var tags = {} // # tagName => [[week, plays], ...]
             for (var w_i = data.weeks.length-1; w_i >= 0; w_i--) {
                 var week = data.weeks[w_i];
                 for (var t_i = 0; t_i < week.tags.length; t_i++) {
@@ -32,7 +32,16 @@
                         tags[tag_obj.tag] = [[parseInt(week.from) * 1000, 
                             parseInt(tag_obj.plays)]]
                     }
-                }        
+                }
+                // add zero plays to tags we didn't touch this week
+                var week_tags = $.map(week.tags, function(tag_obj) { 
+                    return tag_obj.tag});
+                for (var tag in tags) {
+                    if (week_tags.indexOf(tag) < 0 &&
+                            tags[tag][tags[tag].length-1][1] != 0) {
+                        tags[tag].push([parseInt(week.from) * 1000, 0])
+                    }
+                }
             }
 
             var series = [];
