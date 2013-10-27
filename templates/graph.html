@@ -20,7 +20,7 @@
         } else if (data.status) {
             document.getElementById('chart').innerHTML = data.status;
         } else {
-            var tags = {} // # tagName => [[week, plays], ...]
+            var tags = {} // # tagName => [{x, y, artists}, ...]
             for (var w_i = data.weeks.length-1; w_i >= 0; w_i--) {
                 var week = data.weeks[w_i];
                 for (var t_i = 0; t_i < week.tags.length; t_i++) {
@@ -41,7 +41,7 @@
                     return tag_obj.tag});
                 for (var tag in tags) {
                     if (week_tags.indexOf(tag) < 0 &&
-                            tags[tag][tags[tag].length-1][1] != 0) {
+                            tags[tag][tags[tag].length-1].y != 0) {
                         tags[tag].push(
                             {x: parseInt(week.from) * 1000, y: 0, artists: ''}
                         )
@@ -77,7 +77,7 @@
                     },
                     yAxis: {
                         title: {
-                            text: 'Listens' 
+                            text: 'Plays' 
                         },
                         min: 0
                     },
