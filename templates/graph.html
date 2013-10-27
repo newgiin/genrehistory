@@ -25,12 +25,15 @@
                 var week = data.weeks[w_i];
                 for (var t_i = 0; t_i < week.tags.length; t_i++) {
                     var tag_obj = week.tags[t_i];
+                    var data_point = {
+                        x: parseInt(week.from) * 1000, 
+                        y: parseInt(tag_obj.plays),
+                        artists: tag_obj.artists.join(', ')
+                    }
                     if (tags[tag_obj.tag]) {
-                        tags[tag_obj.tag].push([parseInt(week.from) * 1000, 
-                                parseInt(tag_obj.plays)]) 
+                        tags[tag_obj.tag].push(data_point) 
                     } else {
-                        tags[tag_obj.tag] = [[parseInt(week.from) * 1000, 
-                            parseInt(tag_obj.plays)]]
+                        tags[tag_obj.tag] = [data_point]
                     }
                 }
                 // add zero plays to tags we didn't touch this week
@@ -39,7 +42,9 @@
                 for (var tag in tags) {
                     if (week_tags.indexOf(tag) < 0 &&
                             tags[tag][tags[tag].length-1][1] != 0) {
-                        tags[tag].push([parseInt(week.from) * 1000, 0])
+                        tags[tag].push(
+                            {x: parseInt(week.from) * 1000, y: 0, artists: ''}
+                        )
                     }
                 }
             }
@@ -83,10 +88,8 @@
                             return '<b>' + this.series.name + '</b><br/>' +
                                 'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' + 
                                 this.series.name + ': ' + this.y + '<br/>' +
+                                this.point.artists + '<br/>' +
                                 '<a href="http://www.last.fm/user/' + user + '/charts?charttype=weekly&subtype=artist&range=' + this.x/1000 + '-' + (this.x/1000 + 604800) + '" target="_blank">view artist chart</a>';
-                        },
-                        positioner: function(boxWidth, boxHeight, point) { 
-                            return {x:point.plotX, y:point.plotY - 50}; 
                         }
                     },
                     series: series

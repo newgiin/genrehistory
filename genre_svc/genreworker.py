@@ -11,6 +11,7 @@ lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 CACHE_PRD = 86400 # 1 day
 TAGS_PER_ARTIST = 1
 PLAY_THRESHOLD = 5
+NUM_TOP_ARTISTS = 3
 
 def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
@@ -43,13 +44,12 @@ def _get_artisttags(artist, mbid, limit=5):
             if isinstance(tags, list):
                 top_tags = [
                     e['name'] for e in 
-                    tags[0:min(limit, len(tags))]
+                    tags[0:limit]
                 ]
             else:
                 top_tags = [tags['name']]
 
         memcache.add(artist, top_tags, CACHE_PRD)
-        #time.sleep(.2)
 
     return top_tags
 
@@ -66,6 +66,7 @@ class _Quota:
     def run_with_quota(num_reqs, next_interval, f):
         now = time.time()
         can_reset = False
+        logging.info(num_reqs)
         if num_reqs >= _Quota.req_limit or now >= next_interval:
             if num_reqs >= _Quota.req_limit:
                 logging.debug('Reached request limit, waiting: ' + 
@@ -103,6 +104,7 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem = {'from': week['from'], 
                     'to': week['to'], 'tags':[]}
                 tags = {}
+                top_artists = {}
 
                 quota_run = _Quota.run_with_quota(curr_reqs, next_interval,
                     lambda: _get_weeklyartists(user, week['from'], week['to']))
@@ -128,16 +130,19 @@ class GenreWorker(webapp2.RequestHandler):
                     for tag in artist_tags:
                         if tag in tags:
                             tags[tag] += int(artist['playcount'])
+                            if (len(top_artists[tag]) < NUM_TOP_ARTISTS):
+                                top_artists[tag].append(artist_name)
                         else:
                             tags[tag] = int(artist['playcount'])
+                            top_artists[tag] = [artist_name]
 
-                week_elem['tags'] = [{'tag': k, 'plays': v} \
-                                        for k,v in tags.items() \
+                week_elem['tags'] = [{'tag': k, 'plays': v, 
+                                        'artists': top_artists[k]} \
+                                        for k,v in tags.iteritems() \
                                         if v > PLAY_THRESHOLD]
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
 
                 result['weeks'].append(week_elem)
-                #time.sleep(.2)
             
             if user_entity is not None:
                 # prepend new history to old history
