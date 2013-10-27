@@ -30,51 +30,48 @@ def _get_weeklyartists(user, start, end):
     return artists
 
 def _get_artisttags(artist, mbid, limit=5):
-    top_tags = memcache.get(artist)
-    if top_tags is None:
-        top_tags = []
-        toptags_json = lfm_api.artist_gettoptags(artist, 
-            mbid)
+    top_tags = []
+    toptags_json = lfm_api.artist_gettoptags(artist, 
+        mbid)
 
-        if 'error' in toptags_json :
-            logging.error('Error getting tag data for %s[%s]: %s' 
-                % (artist, mbid, toptags_json['error']))
-        elif 'tag' in toptags_json['toptags']:
-            tags = toptags_json['toptags']['tag']
-            if isinstance(tags, list):
-                top_tags = [
-                    e['name'] for e in 
-                    tags[0:limit]
-                ]
-            else:
-                top_tags = [tags['name']]
-
-        memcache.add(artist, top_tags, CACHE_PRD)
+    if 'error' in toptags_json :
+        logging.error('Error getting tag data for %s[%s]: %s' 
+            % (artist, mbid, toptags_json['error']))
+    elif 'tag' in toptags_json['toptags']:
+        tags = toptags_json['toptags']['tag']
+        if isinstance(tags, list):
+            top_tags = [
+                e['name'] for e in 
+                tags[0:limit]
+            ]
+        else:
+            top_tags = [tags['name']]
 
     return top_tags
 
 class _Quota:
     period = 300
     req_limit = 1500
-    
-    class QuotaRun:
-        def __init__(self, can_reset, ret_val):
-            self.can_reset = can_reset
-            self.ret_val = ret_val
 
     @staticmethod
-    def run_with_quota(num_reqs, next_interval, f):
+    def run_with_quota(quota_state, f, reqs_used=1):
         now = time.time()
-        can_reset = False
-        logging.info(num_reqs)
-        if num_reqs >= _Quota.req_limit or now >= next_interval:
-            if num_reqs >= _Quota.req_limit:
+        if (quota_state.num_reqs >= _Quota.req_limit 
+                or now >= quota_state.next_interval):
+            if quota_state.num_reqs >= _Quota.req_limit:
                 logging.debug('Reached request limit, waiting: ' + 
-                    str(next_interval - now) + 'seconds.')
-                time.sleep(next_interval - now)    
-            can_reset = True
+                    str(quota_state.next_interval - now) + 'seconds.')
+                time.sleep(quota_state.next_interval - now)    
+            quota_state.num_reqs = 0
+            quota_state.next_interval = time.time() + _Quota.period
 
-        return _Quota.QuotaRun(can_reset, f())
+        quota_state.num_reqs += reqs_used
+        return f()
+
+class _QuotaState:
+    def __init__(self, num_reqs, next_interval):
+        self.num_reqs = num_reqs
+        self.next_interval = next_interval
 
 class GenreWorker(webapp2.RequestHandler):
     def post(self):
@@ -82,8 +79,7 @@ class GenreWorker(webapp2.RequestHandler):
 
         def txn():
             start = time.time()
-            next_interval = time.time() + _Quota.period
-            curr_reqs = 0
+            quota_state = _QuotaState(0, time.time() + _Quota.period)
 
             user_entity = models.User.get_by_id(user)
             result = {'user': user, 'weeks': []}
@@ -106,26 +102,18 @@ class GenreWorker(webapp2.RequestHandler):
                 tags = {}
                 top_artists = {}
 
-                quota_run = _Quota.run_with_quota(curr_reqs, next_interval,
+                artists = _Quota.run_with_quota(quota_state,
                     lambda: _get_weeklyartists(user, week['from'], week['to']))
-                artists = quota_run.ret_val
-                if quota_run.can_reset:
-                    curr_reqs = 0
-                    next_interval = time.time() + _Quota.period
-                curr_reqs += 1
 
                 for artist in artists:
                     artist_name = artist['name']
 
-                    quota_run = _Quota.run_with_quota(
-                        curr_reqs, next_interval,
-                        lambda: _get_artisttags(artist_name, artist['mbid'], 
-                            TAGS_PER_ARTIST))
-                    artist_tags = quota_run.ret_val
-                    if quota_run.can_reset:
-                        curr_reqs = 0
-                        next_interval = time.time() + _Quota.period
-                    curr_reqs += 1
+                    artist_tags = memcache.get(artist_name)
+                    if artist_tags is None:
+                        artist_tags = _Quota.run_with_quota(quota_state,
+                            lambda: _get_artisttags(artist_name, artist['mbid'], 
+                                TAGS_PER_ARTIST))
+                        memcache.add(artist_name, artist_tags, CACHE_PRD)
 
                     for tag in artist_tags:
                         if tag in tags:
@@ -156,6 +144,6 @@ class GenreWorker(webapp2.RequestHandler):
                 data=json_result)
 
             user_entity.put()
-            logging.debug(user + ' took: ' + str(time.time() - start) + ' seconds.')
+            logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
             
         db.run_in_transaction(txn)
