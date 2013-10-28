@@ -32,7 +32,7 @@ class GenreService(webapp2.RequestHandler):
         try:
             user_entity = models.User.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
-            logging.error(e)
+            logging.critical(e)
             self.response.write(
                 json.dumps({'status': 'Exceeded GAE read quota. ' + 
                     'Yell at atnguyen4@gmail.com'}))
