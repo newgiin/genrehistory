@@ -9,6 +9,7 @@ import time
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 CACHE_PRD = 86400 # 1 day
+AT_CACHE_NS = 'artist_tags'
 TAGS_PER_ARTIST = 1
 PLAY_THRESHOLD = 5
 NUM_TOP_ARTISTS = 3
@@ -17,7 +18,7 @@ def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
     artists = {}
     if 'error' in weekly_artists:
-        logging.error('Error getting top artists for %s in week %s-%s: %s' % 
+        logging.warning('Error getting top artists for %s in week %s-%s: %s' % 
             (user, start, end, weekly_artists['error']))
     elif 'artist' in weekly_artists['weeklyartistchart']:
         if isinstance(
@@ -35,7 +36,7 @@ def _get_artisttags(artist, mbid, limit=5):
         mbid)
 
     if 'error' in toptags_json :
-        logging.error('Error getting tag data for %s[%s]: %s' 
+        logging.warning('Error getting tag data for %s[%s]: %s' 
             % (artist, mbid, toptags_json['error']))
     elif 'tag' in toptags_json['toptags']:
         tags = toptags_json['toptags']['tag']
@@ -108,12 +109,14 @@ class GenreWorker(webapp2.RequestHandler):
                 for artist in artists:
                     artist_name = artist['name']
 
-                    artist_tags = memcache.get(artist_name)
+                    artist_tags = memcache.get(artist_name, 
+                        namespace=AT_CACHE_NS)
                     if artist_tags is None:
                         artist_tags = _Quota.run_with_quota(quota_state,
                             lambda: _get_artisttags(artist_name, artist['mbid'], 
                                 TAGS_PER_ARTIST))
-                        memcache.add(artist_name, artist_tags, CACHE_PRD)
+                        memcache.add(artist_name, artist_tags, CACHE_PRD,
+                            namespace=AT_CACHE_NS)
 
                     for tag in artist_tags:
                         if tag in tags:
