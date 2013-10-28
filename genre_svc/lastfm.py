@@ -61,7 +61,7 @@ class LastFm:
             'Content-Type': 'application/x-www-form-urlencoded'
         }
         
-        logging.debug(url)
+        # logging.debug(url)
 
         result = urlfetch.fetch(url=url, 
              method=urlfetch.GET, headers=headers)

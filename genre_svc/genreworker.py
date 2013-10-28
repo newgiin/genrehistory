@@ -13,6 +13,7 @@ AT_CACHE_NS = 'artist_tags'
 TAGS_PER_ARTIST = 1
 PLAY_THRESHOLD = 5
 NUM_TOP_ARTISTS = 3
+MAX_TPW = 10 # tags per week
 
 def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
@@ -131,8 +132,10 @@ class GenreWorker(webapp2.RequestHandler):
                                         'artists': top_artists[k]} \
                                         for k,v in tags.iteritems() \
                                         if v > PLAY_THRESHOLD]
+                                        
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
-
+                week_elem['tags'] = week_elem['tags'][:MAX_TPW]
+                
                 result['weeks'].append(week_elem)
             
             if user_entity is not None:
