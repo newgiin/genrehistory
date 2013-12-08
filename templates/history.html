@@ -10,7 +10,7 @@
 
     function process() {
         $('#usr_input').val(user);
-        $.getJSON('/data?user=' + user + 
+        $.getJSON('/history_data?user=' + user + 
                 '&max_tpw=10').done(render).fail(disp_error);
     }
 
@@ -110,11 +110,11 @@
     </script>
 </head>
 <body>
-    <form id='user_form' method='get' action='/graph'>
+    <form id='user_form' method='get' action='/history'>
         user: <input type='text' id='usr_input' name='user'></input><br/>
         <input type='submit' value='go'></input>
     </form>
-    <a href="http://www.last.fm/user/{{user}}">{{user}}</a>
+    <a href="http://www.last.fm/user/{{user}}" target="_blank">{{user}}</a>
     <br/><br/>
     <div id='chart'>
         Getting data...

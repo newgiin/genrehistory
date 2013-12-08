@@ -10,7 +10,7 @@ import time
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 CACHE_PRD = 86400 # 1 day
 AT_CACHE_NS = 'artist_tags'
-TAGS_PER_ARTIST = 1
+TAGS_PER_ARTIST = 3
 PLAY_THRESHOLD = 5
 NUM_TOP_ARTISTS = 3
 
@@ -84,6 +84,7 @@ class GenreWorker(webapp2.RequestHandler):
 
             user_entity = models.User.get_by_id(user)
             result = {'user': user, 'weeks': []}
+            tag_graph = {}
             date_floor = None
 
             if user_entity is None:
@@ -91,6 +92,7 @@ class GenreWorker(webapp2.RequestHandler):
                 date_floor = int(user_data['registered']['unixtime'])
             else:
                 date_floor = user_entity.last_updated
+                tag_graph = user_entity.tag_graph
             
             weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
@@ -108,7 +110,7 @@ class GenreWorker(webapp2.RequestHandler):
 
                 for artist in artists:
                     artist_name = artist['name']
-
+                    artist_plays = int(artist['playcount'])
                     artist_tags = memcache.get(artist_name, 
                         namespace=AT_CACHE_NS)
                     if artist_tags is None:
@@ -118,14 +120,26 @@ class GenreWorker(webapp2.RequestHandler):
                         memcache.add(artist_name, artist_tags, CACHE_PRD,
                             namespace=AT_CACHE_NS)
 
-                    for tag in artist_tags:
+                    if artist_tags:
+                        tag = artist_tags[0]
                         if tag in tags:
-                            tags[tag] += int(artist['playcount'])
+                            tags[tag] += artist_plays
                             if (len(top_artists[tag]) < NUM_TOP_ARTISTS):
                                 top_artists[tag].append(artist_name)
                         else:
-                            tags[tag] = int(artist['playcount'])
+                            tags[tag] = artist_plays
                             top_artists[tag] = [artist_name]
+
+                    for tag in artist_tags:
+                        if tag in tag_graph:
+                            tag_graph[tag]['plays'] += artist_plays
+                        else:
+                            tag_graph[tag] = {'plays': artist_plays, \
+                                                    'adj': set()}
+
+                        for syn_tag in artist_tags:
+                            if syn_tag != tag:
+                                tag_graph[tag]['adj'].add(syn_tag)
 
                 week_elem['tags'] = [{'tag': k, 'plays': v, 
                                         'artists': top_artists[k]} \
@@ -135,18 +149,36 @@ class GenreWorker(webapp2.RequestHandler):
 
                 result['weeks'].append(week_elem)
             
+            # filter out tags froms graph with plays below theshold
+            lil_tags = set([tag for tag in tag_graph if 
+                            tag_graph[tag]['plays'] <= PLAY_THRESHOLD])
+            tag_graph = {tag:v for tag,v in tag_graph.iteritems() 
+                if tag_graph[tag]['plays'] > PLAY_THRESHOLD}
+
+            for tag in tag_graph:
+                tag_graph[tag]['adj'] = {tag for tag in 
+                                            iter(tag_graph[tag]['adj']) if
+                                            tag not in lil_tags}
+
+
             if user_entity is not None:
                 # prepend new history to old history
-                old_json = json.loads(user_entity.data)
+                old_json = json.loads(user_entity.history)
                 result['weeks'] += old_json['weeks']
                 
             json_result = json.dumps(result, allow_nan=False)
 
             user_entity = models.User(key=ndb.Key(models.User, user), 
                 last_updated=int(weeks[-1]['to']),
-                data=json_result)
+                history=json_result,
+                tag_graph=tag_graph)
 
             user_entity.put()
             logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
             
         db.run_in_transaction(txn)
+
+
+app = webapp2.WSGIApplication([
+    ('/worker', GenreWorker)
+], debug=True)        

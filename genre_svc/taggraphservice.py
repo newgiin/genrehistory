@@ -12,7 +12,7 @@ from google.appengine.api import memcache
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 BU_CACHE_NS = 'busy_users'
 
-class GenreService(webapp2.RequestHandler):
+class TagGraphService(webapp2.RequestHandler):
     def get(self):
         self.response.headers['Content-Type'] = 'application/json'
         
@@ -40,19 +40,12 @@ class GenreService(webapp2.RequestHandler):
 
         if (user_entity is not None 
                 and user_entity.last_updated >= int(weeks[-1]['to'])):
-            if self.request.get('max_tpw'):
-                try:
-                    # Trim number of tags per week
-                    max_tpw = int(self.request.get('max_tpw'))
-                    user_json = json.loads(user_entity.data) 
-                    for week in user_json['weeks']:
-                        week['tags'] = \
-                            week['tags'][:min(len(week['tags']), max_tpw)]
-                    self.response.write(json.dumps(user_json))
-                except ValueError:
-                    self.response.write(user_entity.data)
-            else:
-                self.response.write(user_entity.data)
+            json_result = {}
+            tag_graph = user_entity.tag_graph
+            for tag in tag_graph:
+                json_result[tag] = {'plays': tag_graph[tag]['plays'],\
+                                        'adj': list(tag_graph[tag]['adj'])}
+            self.response.write(json.dumps(json_result))
         else:
             if memcache.get(user, namespace=BU_CACHE_NS) is None:
                 taskqueue.add(url='/worker',
@@ -65,6 +58,5 @@ class GenreService(webapp2.RequestHandler):
 
 
 app = webapp2.WSGIApplication([
-    ('/data', GenreService),
-    ('/worker', GenreWorker)
+    ('/tag_graph_data', TagGraphService)
 ], debug=True)

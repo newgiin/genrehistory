@@ -1,0 +1,42 @@
+<html>
+<head>
+    <title>Tag Graph</title>
+    <script src='/js/jquery-1.10.2.min.js'></script>
+    <script type="text/javascript" src="/js/arbor.js"></script>
+    <script type='text/javascript'>
+    window.onload = process;
+
+    var user = '{{ user }}';
+
+    function process() {
+        $('#usr_input').val(user);
+        $.getJSON('/tag_graph_data?user=' + user).done(render).fail(disp_error);
+    }
+
+    function render(data, status, jqXHR) {
+        if (data.error) {
+            document.getElementById('chart').innerHTML = data.error;
+        } else if (data.status) {
+            document.getElementById('chart').innerHTML = data.status;
+        } else {
+            
+        }
+    }
+
+    function disp_error(jqxhr, textStatus, error) {
+        alert(textStatus + ': ' + error);
+    }
+    </script>
+</head>
+<body>
+    <form id='user_form' method='get' action='/tag_graph'>
+        user: <input type='text' id='usr_input' name='user'></input><br/>
+        <input type='submit' value='go'></input>
+    </form>
+    <a href="http://www.last.fm/user/{{user}}" target="_blank">{{user}}</a>
+    <br/><br/>
+    <div id='graph'>
+        Getting data...
+    </div>
+</body>
+</html>

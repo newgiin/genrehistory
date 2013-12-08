@@ -8,18 +8,24 @@ default_expiration: "10m"
 
 handlers:
 # Script handlers
-- url: /data.*
-  script: genre_svc.server.app
+- url: /history_data.*
+  script: genre_svc.historyservice.app
 
 - url: /worker
-  script: genre_svc.server.app
+  script: genre_svc.genreworker.app
   login: admin
 
-- url: /graph
-  script: graph.app
+- url: /history
+  script: history.app
 
-- url: /list
-  script: list.app
+- url: /hist_list
+  script: hist_list.app
+
+- url: /tag_graph
+  script: tag_graph.app
+  
+- url: /tag_graph_data.*
+  script: genre_svc.taggraphservice.app
 
 # Static files mapped below
 - url: /(.*\.(appcache|manifest))

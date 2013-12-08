@@ -3,9 +3,16 @@
     <title>Landing Page</title>
 </head>
 <body>
-    <form id='user_form' method='get' action='/graph'>
-        user: <input type='text' id='usr_input' name='user'></input><br/>
+    View your genre history:<br/>
+    <form id='user_form' method='get' action='/history'>
+        user: <input type='text' name='user'></input><br/>
         <input type='submit' value='go'></input>
     </form>
+    <br/>
+    View your genre graph:<br/>
+    <form id='user_form' method='get' action='/tag_graph'>
+        user: <input type='text' name='user'></input><br/>
+        <input type='submit' value='go'></input>
+</form>
 </body>
 </html>

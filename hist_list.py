@@ -13,9 +13,9 @@ class MainPage(webapp2.RequestHandler):
         if user:
             template_values = {'user':user}
             template = JINJA_ENVIRONMENT.get_template(
-                'templates/graph.html')
+                'templates/hist_list.html')
             self.response.write(template.render(template_values))
         else:
             self.redirect('/', permanent=True)
 
-app = webapp2.WSGIApplication([('/graph', MainPage)], debug=True)
+app = webapp2.WSGIApplication([('/hist_list', MainPage)], debug=True)
