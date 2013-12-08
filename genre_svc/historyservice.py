@@ -15,7 +15,8 @@ BU_CACHE_NS = 'busy_users'
 class HistoryService(webapp2.RequestHandler):
     def get(self):
         self.response.headers['Content-Type'] = 'application/json'
-        
+        self.response.headers['Cache-Control'] = \
+            'no-transform,public,max-age=300,s-maxage=900'
         user = self.request.get('user')
 
         if not user:
@@ -32,7 +33,7 @@ class HistoryService(webapp2.RequestHandler):
         try:
             user_entity = models.User.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
-            logging.error(e)
+            logging.critical(e)
             self.response.write(
                 json.dumps({'status': 'Exceeded GAE read quota. ' + 
                     'Yell at atnguyen4@gmail.com'}))
@@ -40,19 +41,7 @@ class HistoryService(webapp2.RequestHandler):
 
         if (user_entity is not None 
                 and user_entity.last_updated >= int(weeks[-1]['to'])):
-            if self.request.get('max_tpw'):
-                try:
-                    # Trim number of tags per week
-                    max_tpw = int(self.request.get('max_tpw'))
-                    user_json = json.loads(user_entity.history) 
-                    for week in user_json['weeks']:
-                        week['tags'] = \
-                            week['tags'][:min(len(week['tags']), max_tpw)]
-                    self.response.write(json.dumps(user_json))
-                except ValueError: # for invalid tpw values
-                    self.response.write(user_entity.history)
-            else:
-                self.response.write(user_entity.history)
+            self.response.write(user_entity.data)
         else:
             if memcache.get(user, namespace=BU_CACHE_NS) is None:
                 taskqueue.add(url='/worker',

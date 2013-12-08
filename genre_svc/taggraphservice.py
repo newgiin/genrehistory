@@ -15,7 +15,9 @@ BU_CACHE_NS = 'busy_users'
 class TagGraphService(webapp2.RequestHandler):
     def get(self):
         self.response.headers['Content-Type'] = 'application/json'
-        
+        self.response.headers['Cache-Control'] = \
+            'no-transform,public,max-age=300,s-maxage=900'
+                    
         user = self.request.get('user')
 
         if not user:

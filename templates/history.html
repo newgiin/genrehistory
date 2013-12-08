@@ -10,8 +10,7 @@
 
     function process() {
         $('#usr_input').val(user);
-        $.getJSON('/history_data?user=' + user + 
-                '&max_tpw=10').done(render).fail(disp_error);
+        $.getJSON('/history_data?user=' + user).done(render).fail(disp_error);
     }
 
     function render(data, status, jqXHR) {
