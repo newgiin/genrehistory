@@ -1,8 +1,25 @@
 <html>
 <head>
     <title>Tag Graph</title>
+    <style type='text/css'>
+        body {
+            background-color: #EEE;
+        }
+    </style>
+</head>
+<body>
+    <form id='user_form' method='get' action='/tag_graph'>
+        user: <input type='text' id='usr_input' name='user'></input>
+        <input type='submit' value='go'></input>
+    </form>
+    <div id="status"></div>
+    <canvas id="viewport" width="1000" height="1000"></canvas>
+        
+    </canvas>
     <script src='/js/jquery-1.10.2.min.js'></script>
     <script type="text/javascript" src="/js/arbor.js"></script>
+    <script type="text/javascript" src="/js/graphics.js"></script>
+    <script type="text/javascript" src="/js/renderer.js"></script>
     <script type='text/javascript'>
     window.onload = process;
 
@@ -15,28 +32,49 @@
 
     function render(data, status, jqXHR) {
         if (data.error) {
-            document.getElementById('chart').innerHTML = data.error;
+            document.getElementById('status').innerHTML = data.error;
         } else if (data.status) {
-            document.getElementById('chart').innerHTML = data.status;
+            document.getElementById('status').innerHTML = data.status;
         } else {
-            
+            var sys = arbor.ParticleSystem(1, 1, 0.5) // create the system with sensible repulsion/stiffness/friction
+            sys.parameters({gravity:true}) // use center-gravity to make the graph settle nicely (ymmv)
+            sys.renderer = Renderer("#viewport") // our newly created renderer will have its .init() method called shortly by sys...
+
+            for (tag in data) {
+                for (var i = 0; i < data[tag].adj.length; i++) {
+                    var edge = data[tag].adj[i];
+                    console.log(tag + '->' + edge);
+                    sys.addEdge(tag, edge);
+                }
+            }
+
+            // add some nodes to the graph and watch it go...
+            // sys.addEdge('aDFDGfsay','b', {})
+            // sys.addEdge('aDFDGfsay','c')
+            // sys.addEdge('aDFDGfsay','d')
+            // sys.addEdge('aDFDGfsay','e')
+            // sys.addNode('f', {alone:true, color:'red',mass:.25})
+
+            // or, equivalently:
+            //
+            // sys.graft({
+            //   nodes:{
+            //     f:{alone:true, mass:.25}
+            //   }, 
+            //   edges:{
+            //     a:{ b:{},
+            //         c:{},
+            //         d:{},
+            //         e:{}
+            //     }
+            //   }
+            // })
         }
     }
 
     function disp_error(jqxhr, textStatus, error) {
         alert(textStatus + ': ' + error);
     }
-    </script>
-</head>
-<body>
-    <form id='user_form' method='get' action='/tag_graph'>
-        user: <input type='text' id='usr_input' name='user'></input><br/>
-        <input type='submit' value='go'></input>
-    </form>
-    <a href="http://www.last.fm/user/{{user}}" target="_blank">{{user}}</a>
-    <br/><br/>
-    <div id='graph'>
-        Getting data...
-    </div>
+    </script>    
 </body>
 </html>
