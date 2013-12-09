@@ -14,6 +14,7 @@ class MainPage(webapp2.RequestHandler):
             template_values = {'user':user}
             if self.request.get('tp') is not None:
                 template_values['tp'] = self.request.get('tp')
+
             template = JINJA_ENVIRONMENT.get_template(
                 'templates/tag_graph.html')
             self.response.write(template.render(template_values))

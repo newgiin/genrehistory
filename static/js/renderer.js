@@ -50,26 +50,38 @@ var Renderer = function(canvas){
         // determine the box size and round off the coords if we'll be 
         // drawing a text label (awful alignment jitter otherwise...)
         var label = node.name
-        var w = ctx.measureText(""+label).width + 10
-        if (!(""+label).match(/^[ \t]*$/)){
-          pt.x = Math.floor(pt.x)
-          pt.y = Math.floor(pt.y)
-        } else {
-          label = null
+        var font_size = 10
+        if (node.data.font_size) {
+          font_size = node.data.font_size;
+        }
+        
+        // draw the text
+        if (label){
+          ctx.font = font_size + "px Helvetica"
+          ctx.textAlign = "center"
+          ctx.fillStyle = '#333333'
+          ctx.fillText(label||"", pt.x, pt.y+4)
+          ctx.fillText(label||"", pt.x, pt.y+4)
         }
 
-        // draw a rectangle centered at pt
-        if (node.data.color) ctx.fillStyle = node.data.color
-        else ctx.fillStyle = "rgba(0,0,0,.2)"
-        if (node.data.color=='none') ctx.fillStyle = "white"
+        var w = ctx.measureText(""+label).width + 10
 
-        gfx.rect(pt.x-w/2, pt.y-10, w,20, 4, {fill:ctx.fillStyle})
-        nodeBoxes[node.name] = [pt.x-w/2, pt.y-11, w, 22]
-        
+        var h = font_size * 2
+        // draw a rectangle centered at pt
+        if (node.data.color) 
+          ctx.fillStyle = node.data.color
+        else 
+          ctx.fillStyle = "rgba(0,0,0,.2)"
+
+        if (node.data.color=='none') 
+          ctx.fillStyle = "white"
+
+        gfx.rect(pt.x-w/2, pt.y-parseInt(font_size*1.1), w, h, 4, {fill:ctx.fillStyle})
+        nodeBoxes[node.name] = [pt.x-w/2, pt.y-parseInt(font_size*1.1), w, h]
 
         // draw the text
         if (label){
-          ctx.font = "10px Helvetica"
+          ctx.font = font_size + "px Helvetica"
           ctx.textAlign = "center"
           ctx.fillStyle = '#333333'
           ctx.fillText(label||"", pt.x, pt.y+4)
