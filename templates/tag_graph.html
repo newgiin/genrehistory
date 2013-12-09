@@ -38,11 +38,11 @@
         } else if (data.status) {
             document.getElementById('status').innerHTML = data.status;
         } else {
-            var sys = arbor.ParticleSystem(50, 50, 0.5) // create the system with sensible repulsion/stiffness/friction
+            var sys = arbor.ParticleSystem(100, 100, 0.5) // create the system with sensible repulsion/stiffness/friction
             sys.parameters({gravity:true}) // use center-gravity to make the graph settle nicely (ymmv)
             sys.renderer = Renderer("#viewport") // our newly created renderer will have its .init() method called shortly by sys...
 
-            var MAX_FONT = 30;
+            var MAX_FONT = 60;
             var MIN_FONT = 10;
             var MAX_PLAYS = 1;
 

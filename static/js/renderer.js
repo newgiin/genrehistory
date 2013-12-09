@@ -54,7 +54,7 @@ var Renderer = function(canvas){
         if (node.data.font_size) {
           font_size = node.data.font_size;
         }
-        
+
         // draw the text
         if (label){
           ctx.font = font_size + "px Helvetica"
@@ -66,7 +66,7 @@ var Renderer = function(canvas){
 
         var w = ctx.measureText(""+label).width + 10
 
-        var h = font_size * 2
+        var h = parseInt(font_size * 1.2)
         // draw a rectangle centered at pt
         if (node.data.color) 
           ctx.fillStyle = node.data.color
@@ -76,8 +76,9 @@ var Renderer = function(canvas){
         if (node.data.color=='none') 
           ctx.fillStyle = "white"
 
-        gfx.rect(pt.x-w/2, pt.y-parseInt(font_size*1.1), w, h, 4, {fill:ctx.fillStyle})
-        nodeBoxes[node.name] = [pt.x-w/2, pt.y-parseInt(font_size*1.1), w, h]
+        var box_origin = {x: pt.x-w/2, y: pt.y-parseInt(h*.6)}
+        gfx.rect(box_origin.x, box_origin.y, w, h, 4, {fill:ctx.fillStyle})
+        nodeBoxes[node.name] = [box_origin.x, box_origin.y, w, h]
 
         // draw the text
         if (label){
