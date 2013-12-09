@@ -11,7 +11,7 @@ lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
 CACHE_PRD = 86400 # 1 day
 AT_CACHE_NS = 'artist_tags'
 TAGS_PER_ARTIST = 3
-PLAY_THRESHOLD = 5
+PLAY_THRESHOLD = 6
 NUM_TOP_ARTISTS = 3
 MAX_TPW = 10 # tags per week
 
@@ -145,7 +145,7 @@ class GenreWorker(webapp2.RequestHandler):
                 week_elem['tags'] = [{'tag': k, 'plays': v, 
                                         'artists': top_artists[k]} \
                                         for k,v in tags.iteritems() \
-                                        if v > PLAY_THRESHOLD]
+                                        if v >= PLAY_THRESHOLD]
                                         
                 week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
                 week_elem['tags'] = week_elem['tags'][:MAX_TPW]
@@ -154,13 +154,13 @@ class GenreWorker(webapp2.RequestHandler):
             
             # filter out tags froms graph with plays below theshold
             lil_tags = set([tag for tag in tag_graph if 
-                            tag_graph[tag]['plays'] <= PLAY_THRESHOLD])
+                            tag_graph[tag]['plays'] < PLAY_THRESHOLD])
             tag_graph = {tag:v for tag,v in tag_graph.iteritems() 
-                if tag_graph[tag]['plays'] > PLAY_THRESHOLD}
+                if tag_graph[tag]['plays'] >= PLAY_THRESHOLD}
 
             for tag in tag_graph:
                 tag_graph[tag]['adj'] = {tag for tag in 
-                                            iter(tag_graph[tag]['adj']) if
+                                            tag_graph[tag]['adj'] if
                                             tag not in lil_tags}
 
 

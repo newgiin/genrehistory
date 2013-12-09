@@ -42,12 +42,24 @@ class TagGraphService(webapp2.RequestHandler):
 
         if (user_entity is not None 
                 and user_entity.last_updated >= int(weeks[-1]['to'])):
-            json_result = {}
             tag_graph = user_entity.tag_graph
-            for tag in tag_graph:
-                json_result[tag] = {'plays': tag_graph[tag]['plays'],\
-                                        'adj': list(tag_graph[tag]['adj'])}
-            self.response.write(json.dumps(json_result))
+
+            tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])} 
+                            for tag, v in tag_graph.iteritems()]
+            tag_objs.sort(key=lambda e: e['plays'], reverse=True)
+
+            if self.request.get('tp') and self.request.get('tp').isdigit():
+                top_percent = int(self.request.get('tp')) / 100.0
+                tag_objs = tag_objs[:int(len(tag_objs) * top_percent)]
+                top_tags = set([obj['tag'] for obj in tag_objs])
+
+                for obj in tag_objs:
+                    adj = [syn_tag for syn_tag in obj['adj']
+                            if syn_tag in top_tags]
+
+                    obj['adj'] = adj
+
+            self.response.write(json.dumps({'tags': tag_objs}))
         else:
             if memcache.get(user, namespace=BU_CACHE_NS) is None:
                 taskqueue.add(url='/worker',

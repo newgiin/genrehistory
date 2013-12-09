@@ -10,10 +10,11 @@
 <body>
     <form id='user_form' method='get' action='/tag_graph'>
         user: <input type='text' id='usr_input' name='user'></input>
+        Top x% tags: <input type='text' id='tp_input' name='tp'></input>
         <input type='submit' value='go'></input>
     </form>
     <div id="status"></div>
-    <canvas id="viewport" width="1000" height="1000"></canvas>
+    <canvas id="viewport" width="1300" height="900"></canvas>
         
     </canvas>
     <script src='/js/jquery-1.10.2.min.js'></script>
@@ -27,7 +28,8 @@
 
     function process() {
         $('#usr_input').val(user);
-        $.getJSON('/tag_graph_data?user=' + user).done(render).fail(disp_error);
+        $('#tp_input').val('{{ tp }}');
+        $.getJSON('/tag_graph_data?tp={{ tp }}&user=' + user).done(render).fail(disp_error);
     }
 
     function render(data, status, jqXHR) {
@@ -36,14 +38,14 @@
         } else if (data.status) {
             document.getElementById('status').innerHTML = data.status;
         } else {
-            var sys = arbor.ParticleSystem(1, 1, 0.5) // create the system with sensible repulsion/stiffness/friction
+            var sys = arbor.ParticleSystem(3, 1, 0.5) // create the system with sensible repulsion/stiffness/friction
             sys.parameters({gravity:true}) // use center-gravity to make the graph settle nicely (ymmv)
             sys.renderer = Renderer("#viewport") // our newly created renderer will have its .init() method called shortly by sys...
 
-            for (tag in data) {
-                for (var i = 0; i < data[tag].adj.length; i++) {
-                    var edge = data[tag].adj[i];
-                    console.log(tag + '->' + edge);
+            for (var i = 0; i < data.tags.length; i++) {
+                var tag = data.tags[i].tag;
+                for (var j = 0; j < data.tags[i].adj.length; j++) {
+                    var edge = data.tags[i].adj[j];
                     sys.addEdge(tag, edge);
                 }
             }

@@ -41,7 +41,7 @@ class HistoryService(webapp2.RequestHandler):
 
         if (user_entity is not None 
                 and user_entity.last_updated >= int(weeks[-1]['to'])):
-            self.response.write(user_entity.data)
+            self.response.write(user_entity.history)
         else:
             if memcache.get(user, namespace=BU_CACHE_NS) is None:
                 taskqueue.add(url='/worker',
