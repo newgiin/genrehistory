@@ -1,0 +1,22 @@
+<html>
+<head>
+    <title>Last.fm Tag History</title>
+</head>
+<body>
+    <form id='user_form' method='get' action='/history'>
+        user: <input type='text' id='user_input' name='user'></input>
+        <input type='submit' value='go'></input>
+    </form>
+    <a id="user_link" href="#" target="_blank"></a>
+    <br/><br/>
+    <div id='chart'>
+        Getting data...
+    </div>
+    <button id="showall_btn">show all</button>
+    <button id="hideall_btn">hide all</button>
+
+    <script src='/js/jquery-1.10.2.min.js'></script>
+    <script type="text/javascript" src="/js/highcharts.js"></script>
+    <script type='text/javascript' src="/js/history.js"></script>
+</body>
+</html>
