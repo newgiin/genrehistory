@@ -8,7 +8,7 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
-        user = self.request.get('user')
+        user = self.request.get('user').replace('\'', '\\\'').replace('"', '\\"')
 
         if user:
             template_values = {'user':user}

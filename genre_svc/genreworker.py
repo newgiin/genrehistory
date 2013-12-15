@@ -57,13 +57,21 @@ class _Quota:
 
     @staticmethod
     def run_with_quota(quota_state, f, reqs_used=1):
+        """
+        Call 'f()' returning the result if the current number of requests 
+        for this period is not over the request limit. Otherwise, sleep until
+        the next_interval, reset the current number of requests to zero,
+        and then call 'f()', incrementing quota_state.num_reqs by 'reqs_used'.
+        """
         now = time.time()
         if (quota_state.num_reqs >= _Quota.req_limit 
                 or now >= quota_state.next_interval):
+
             if quota_state.num_reqs >= _Quota.req_limit:
                 logging.debug('Reached request limit, waiting: ' + 
                     str(quota_state.next_interval - now) + 'seconds.')
                 time.sleep(quota_state.next_interval - now)    
+
             quota_state.num_reqs = 0
             quota_state.next_interval = time.time() + _Quota.period
 
@@ -177,6 +185,9 @@ class GenreWorker(webapp2.RequestHandler):
                 tag_graph=tag_graph)
 
             user_entity.put()
+
+            ndb.Key(models.BusyUser, user).delete()
+
             logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
             
         db.run_in_transaction(txn)

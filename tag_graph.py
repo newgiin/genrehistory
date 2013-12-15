@@ -8,12 +8,13 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
-        user = self.request.get('user')
+        user = self.request.get('user').replace('\'', '\\\'').replace('"', '\\"')
 
         if user:
             template_values = {'user':user}
             if self.request.get('tp') is not None:
-                template_values['tp'] = self.request.get('tp')
+                template_values['tp'] = \
+                    self.request.get('tp').replace('\'', '\\\'').replace('"', '\\"')
 
             template = JINJA_ENVIRONMENT.get_template(
                 'templates/tag_graph.html')

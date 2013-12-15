@@ -9,8 +9,9 @@
     var user = '{{ user }}';
 
     function process() {
-        $('#usr_input').val(user);
-        $.getJSON('/history_data?user=' + user).done(render).fail(disp_error);
+        $('#user_input').val(user);
+        $('#user_link').attr('href', 'http://last.fm/user/' + encodeURIComponent(user));
+        $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
     }
 
     function render(data, status, jqXHR) {
@@ -61,7 +62,7 @@
             $(function () {
                 $('#chart').highcharts({
                     title: {
-                        text: 'Genre data for {{ user }}'
+                        text: 'Genre data for ' + user
                     },
                     chart: {
                         zoomType: 'x'
@@ -87,12 +88,39 @@
                             return '<b>' + this.series.name + '</b><br/>' +
                                 'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' + 
                                 this.series.name + ': ' + this.y + '<br/>' +
-                                this.point.artists + '<br/>' +
-                                '<a href="http://www.last.fm/user/' + user + '/charts?charttype=weekly&subtype=artist&range=' + this.x/1000 + '-' + (this.x/1000 + 604800) + '" target="_blank">view artist chart</a>';
+                                this.point.artists
                         }
                     },
-                    series: series
-                    });
+                    series: series,
+                    plotOptions: {
+                        series: {
+                            marker: {
+                                enabled: false
+                            }
+                        }
+                    }
+                });
+
+                $('#showall_btn').click(function() {  
+                    var chart = $('#chart').highcharts();
+                    var series = chart.series;
+                    for (var i = 0; i < series.length; i++) {
+                        if (!series[i].visible) {
+                            series[i].show();
+                        }
+                    }
+                });
+                
+                $('#hideall_btn').click(function() {
+                    var chart = $('#chart').highcharts();
+                    var series = chart.series;
+                    for (var i = 0; i < series.length; i++) {
+                        if (series[i].visible) {
+                            series[i].hide();
+                        }
+                    }
+                });
+
            });
         }
     }
@@ -110,13 +138,15 @@
 </head>
 <body>
     <form id='user_form' method='get' action='/history'>
-        user: <input type='text' id='usr_input' name='user'></input>
+        user: <input type='text' id='user_input' name='user'></input>
         <input type='submit' value='go'></input>
     </form>
-    <a href="http://www.last.fm/user/{{user}}" target="_blank">{{user}}</a>
+    <a id="user_link" href="#" target="_blank">{{user}}</a>
     <br/><br/>
     <div id='chart'>
         Getting data...
     </div>
+    <button id="showall_btn">show all</button>
+    <button id="hideall_btn">hide all</button>
 </body>
 </html>

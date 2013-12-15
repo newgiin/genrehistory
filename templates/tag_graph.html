@@ -9,7 +9,7 @@
 </head>
 <body>
     <form id='user_form' method='get' action='/tag_graph'>
-        user: <input type='text' id='usr_input' name='user'></input>
+        user: <input type='text' id='user_input' name='user'></input>
         Top x% tags: <input type='text' id='tp_input' name='tp'></input>
         <input type='submit' value='go'></input>
     </form>
@@ -27,9 +27,9 @@
     var user = '{{ user }}';
 
     function process() {
-        $('#usr_input').val(user);
+        $('#user_input').val(user);
         $('#tp_input').val('{{ tp }}');
-        $.getJSON('/tag_graph_data?tp={{ tp }}&user=' + user).done(render).fail(disp_error);
+        $.getJSON('/tag_graph_data?tp={{ tp }}&user=' + encodeURIComponent(user)).done(render).fail(disp_error);
     }
 
     function render(data, status, jqXHR) {
