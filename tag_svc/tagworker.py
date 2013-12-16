@@ -83,7 +83,7 @@ class _QuotaState:
         self.num_reqs = num_reqs
         self.next_interval = next_interval
 
-class GenreWorker(webapp2.RequestHandler):
+class TagWorker(webapp2.RequestHandler):
     def post(self):
         user = self.request.get('user')
 
@@ -194,5 +194,5 @@ class GenreWorker(webapp2.RequestHandler):
 
 
 app = webapp2.WSGIApplication([
-    ('/worker', GenreWorker)
+    ('/worker', TagWorker)
 ], debug=True)        

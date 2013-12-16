@@ -4,7 +4,7 @@ import logging
 import models
 import lastfm
 import time
-from genreworker import GenreWorker
+from tagworker import TagWorker
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
 from google.appengine.api import memcache

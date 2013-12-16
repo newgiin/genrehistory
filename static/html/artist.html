@@ -1,88 +1,88 @@
 <html>
 <head>
-<title>test</title>
-<script src='lastfm.js'></script>
-<script type='text/javascript'>
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
 window.onload = main;
 
-var lastfm = new LastFM('39c795e91c62cf9d469392c7c2648c80');
+ontent/wrapper/g
 
-var user;
+ontent/wrapper/g
 var realname;
-var register_date;
+ontent/wrapper/g
 
 function main() {
-    document.getElementById('sandbox_form').onsubmit = function() { 
-        process();
-        return false 
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
     };
 }
 
-function process() {
-    clear_console();
-    user = document.getElementById('user').value;
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
     
-    lastfm.get_user(user, get_user_callback);
+ontent/wrapper/g
 }
 
-function get_user_callback(result) {
-        realname = result.user.realname;
-        register_date = parseInt(result.user.registered.unixtime, 10);
-        lastfm.get_weeklycharts(user, get_weeklycharts_callback);
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
 }
 
-function get_weeklycharts_callback(result) {
-    var chart = result.weeklychartlist.chart;
+ontent/wrapper/g
+ontent/wrapper/g
     
-    process_week(chart.length-1, chart);
+ontent/wrapper/g
 }
 
-function process_week(week, chart) {
-    if (week < 0 || chart[week].to <= register_date) {
+ontent/wrapper/g
+ontent/wrapper/g
         return;
     }
     
     var from = chart[week].from;
     var to = chart[week].to;
     
-    lastfm.get_weeklyartistchart(user, from, to, function(result) {
+ontent/wrapper/g
         print(unix2localtime(from) + ' - ' + unix2localtime(to));
-        var artists = result.weeklyartistchart.artist;
+ontent/wrapper/g
         var total = 0;
         
-        for (var i = 0; i < artists.length; i++) {
-            print(artists[i].name + ' ' + artists[i].playcount);
-            total += parseInt(artists[i].playcount, 10);
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
         }
         print('Total: ' + total);
         print('<br/>')
-        setTimeout(function(){ process_week(week-1, chart) }, 1000);
+ontent/wrapper/g
     });
 }
 
 function unix2localtime(time) {
-    time = parseInt(time, 10);
+ontent/wrapper/g
     var date = new Date(time * 1000);
     return date.toLocaleString();
 }
 
-function print(str) {
+ontent/wrapper/g
     var div = document.createElement('div');
-    div.innerHTML = str;
+ontent/wrapper/g
     document.getElementById('output').appendChild(div);
 }
 
-function clear_console() {
+ontent/wrapper/g
     document.getElementById('output').innerHTML = '';
 }
 
-</script>
+ontent/wrapper/g
 
 </head>
 <body>
-    <form id='sandbox_form'>
-        user: <input type='text' id='user' name='user'></input><br/>
-        <input type='submit' value='go'></input>
+ontent/wrapper/g
+ontent/wrapper/g
+ontent/wrapper/g
     </form>
     <div id='output'>
     

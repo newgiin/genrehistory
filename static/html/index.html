@@ -1,19 +1,28 @@
 <html>
 <head>
-    <title>Landing Page</title>
+    <title>Last.fm Tag Visualizations</title>
+    <link rel="stylesheet" type="text/css" href="/css/main.css"/>
 </head>
 <body>
-    View your genre history:<br/>
-    <form id='user_form' method='get' action='/history'>
-        user: <input type='text' name='user'></input><br/>
-        <input type='submit' value='go'></input>
-    </form>
-    <br/>
-    View your genre graph:<br/>
-    <form id='user_form' method='get' action='/tag_graph'>
-        user: <input type='text' name='user'></input><br/>
-        <input type='hidden' name='tp' value='20'/>
-        <input type='submit' value='go'></input>
-</form>
+    <div id="wrapper">
+        <div id="content">
+            <h2>Last.fm Tag Visualizations</h2>
+            <h3>Tag History</h3>
+            Tags over time based on your artist charts.<br/><br/>
+            <form id='user_form' method='get' action='/history'>
+                user: <input type='text' name='user'></input>
+                <input type='submit' value='go'></input>
+            </form>
+            <br/>
+            <h3>Tag Graph</h3>
+            View the relationship between genres you listen to.<br/><br/>
+            <form id='user_form' method='get' action='/tag_graph'>
+                user: <input type='text' name='user'></input>
+                <input type='hidden' name='tp' value='20'/>
+                <input type='submit' value='go'></input>
+            </form>
+        </div>
+    </div>
+    <div id="footer">by <a href="http://andruunwien.com">Andrew</a> | Data from <a href="http://last.fm">Last.fm</a></div>
 </body>
 </html>

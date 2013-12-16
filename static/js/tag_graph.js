@@ -27,7 +27,7 @@ function render(data, status, jqXHR) {
             var tag = data.tags[i].tag;
             var fs = Math.max(MIN_FONT, 
                             parseInt(data.tags[i].plays*MAX_FONT / MAX_PLAYS));
-            sys.addNode(tag, {font_size: fs});
+            sys.addNode(tag, {font_size: fs, color: '#3096FC'});
 
             for (var j = 0; j < data.tags[i].adj.length; j++) {
                 var edge = data.tags[i].adj[j];

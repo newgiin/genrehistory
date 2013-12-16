@@ -1,22 +1,26 @@
 <html>
 <head>
     <title>Last.fm Tag Graph</title>
+    <link rel="stylesheet" type="text/css" href="/css/main.css"/>
     <style type="text/css">
-        body {
-            background-color: #EEE;
-        }
+        #footer { position: inherit;}
     </style>
 </head>
 <body>
-    <form id="user_form" method="get" action="/tag_graph">
-        user: <input type="text" id="user_input" name="user"></input>
-        Top x% tags: <input type="text" id="tp_input" name="tp"></input>
-        <input type="submit" value="go"></input>
-    </form>
-    <div id="status"></div>
-    <canvas id="viewport" width="1300" height="800"></canvas>
-    </canvas>
-
+    <div id="wrapper">
+        <div id="content">
+            <form id="user_form" method="get" action="/tag_graph">
+                <a href="/">&laquo;</a>
+                user: <input type="text" id="user_input" name="user"></input>
+                Top x% tags: <input type="text" id="tp_input" name="tp"></input>
+                <input type="submit" value="go"></input>
+            </form>
+            <div id="status"></div>
+            <canvas id="viewport" width="1300" height="800"></canvas>
+            </canvas>
+        </div>
+    </div>
+    <div id="footer">by <a href="http://andruunwien.com">Andrew</a> | Data from <a href="http://last.fm">Last.fm</a></div>
     <script src="/js/jquery-1.10.2.min.js"></script>
     <script type="text/javascript" src="/js/arbor.js"></script>
     <script type="text/javascript" src="/js/graphics.js"></script>

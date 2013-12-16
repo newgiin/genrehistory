@@ -53,7 +53,7 @@ function render(data, status, jqXHR) {
         $(function () {
             $('#chart').highcharts({
                 title: {
-                    text: 'Genre data for ' + user
+                    text: 'Tag data for ' + user
                 },
                 chart: {
                     zoomType: 'x'

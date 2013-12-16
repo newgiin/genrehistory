@@ -1,4 +1,4 @@
-application: lfm-genrehistory
+application: lfm-taghistory
 version: 0
 runtime: python27
 api_version: 1
@@ -9,17 +9,17 @@ default_expiration: "10m"
 handlers:
 # Script handlers
 - url: /history_data
-  script: genre_svc.historyservice.app
+  script: tag_svc.historyservice.app
 
 - url: /worker
-  script: genre_svc.genreworker.app
+  script: tag_svc.tagworker.app
   login: admin
 
 - url: /hist_list
   script: hist_list.app
 
 - url: /tag_graph_data
-  script: genre_svc.taggraphservice.app
+  script: tag_svc.taggraphservice.app
 
 # Static files mapped below
 - url: /history
