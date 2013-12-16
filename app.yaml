@@ -1,4 +1,4 @@
-application: lfm-taghistory
+application: lfm-genrehistory
 version: 0
 runtime: python27
 api_version: 1

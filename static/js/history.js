@@ -53,12 +53,15 @@ function render(data, status, jqXHR) {
         $(function () {
             $('#chart').highcharts({
                 title: {
-                    text: 'Tag data for ' + user
+                    text: 'Tag History for ' + user
                 },
                 chart: {
                     zoomType: 'x'
                 },
                 xAxis: {
+                    title: {
+                        text: 'week'
+                    },
                     startOfWeek: 0,
                     type: 'datetime',
                     dateTimeLabelFormats: {
@@ -68,7 +71,7 @@ function render(data, status, jqXHR) {
                 },
                 yAxis: {
                     title: {
-                        text: 'Plays' 
+                        text: 'plays' 
                     },
                     min: 0
                 },
