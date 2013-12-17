@@ -67,7 +67,36 @@ class LastFm:
              method=urlfetch.GET, headers=headers)
 
         if result.status_code != 200:
-            return {'error': str(result.status_code)}
-        return json.loads(result.content)
+            return {'error': 'urlfetch error: ' + str(result.status_code)}
+
+        result = json.loads(result.content)
 
 
+        if 'error' in result:
+            error_code = int(result['error'])
+            if error_code == 29:
+                logging.critical('Exceeded Last.fm rate limit')
+                raise ExceedRateLimitError
+            elif error_code == 26:
+                logging.critical('Suspended Last.fm API key')
+                raise SuspendedAPIKeyError
+            elif error_code == 11:
+                logging.error('Last.fm service offline')
+                raise ServiceOfflineError
+            elif error_code == 16:
+                logging.warning('Temporary Last.fm error')
+                raise TemporaryError
+
+        return result
+
+class ExceedRateLimitError(Exception):
+    pass
+
+class SuspendedAPIKeyError(Exception):
+    pass
+
+class ServiceOfflineError(Exception):
+    pass
+
+class TemporaryError(Exception):
+    pass
