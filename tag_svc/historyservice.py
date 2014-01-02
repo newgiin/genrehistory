@@ -9,7 +9,6 @@ import time
 from tagworker import TagWorker
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
-from google.appengine.api import memcache
 from google.appengine.ext import ndb
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')

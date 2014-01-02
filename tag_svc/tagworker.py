@@ -8,7 +8,7 @@ from google.appengine.api import memcache
 import time
 
 lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
-CACHE_PRD = 86400 # 1 day
+CACHE_PRD = 604800 # 1 week
 AT_CACHE_NS = 'artist_tags'
 TAGS_PER_ARTIST = 3
 PLAY_THRESHOLD = 6
@@ -63,15 +63,23 @@ class _Quota:
         the next_interval, reset the current number of requests to zero,
         and then call 'f()', incrementing quota_state.num_reqs by 'reqs_used'.
         """
-        now = time.time()
-        if (quota_state.num_reqs >= _Quota.req_limit 
-                or now >= quota_state.next_interval):
+        if quota_state.num_reqs >= _Quota.req_limit:
+            now = time.time()
+            logging.debug('Reached request limit, waiting: ' + 
+                str(quota_state.next_interval - now) + 'seconds.')
+            try:
+                # To ensure next time.time() >= next_interval,
+                # add half a second due to potential imprecisions
+                # with time.sleep()
+                time.sleep(quota_state.next_interval + 0.5 - now)    
+            except IOError:
+                # In the unusual request limit is hit
+                # after next_interval is reached
+                pass 
 
-            if quota_state.num_reqs >= _Quota.req_limit:
-                logging.debug('Reached request limit, waiting: ' + 
-                    str(quota_state.next_interval - now) + 'seconds.')
-                time.sleep(quota_state.next_interval - now)    
-
+        if time.time() >= quota_state.next_interval:
+            logging.debug('next-interval reached with ' + str(quota_state.num_reqs)
+                + 'requests')
             quota_state.num_reqs = 0
             quota_state.next_interval = time.time() + _Quota.period
 
