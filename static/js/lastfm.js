@@ -64,6 +64,20 @@ LastFM.prototype.get_weeklyartistchart = function(user,
             callback(result);
         });      
 }
+
+LastFM.prototype.get_weeklytrackchart = function(user, from, to, callback) {
+    var params = {
+        'api_key': this.API_KEY,
+        'method': 'user.getweeklytrackchart',
+        'user': user,
+        'from': from,
+        'to': to
+    }
+    params.format = "json";
+    
+    this._xhr("GET", params, function(result) { callback(result); });  
+}
+
 /**
  * Performs an XMLHTTP request and expects JSON as reply
  *
@@ -86,7 +100,7 @@ LastFM.prototype._xhr = function(method, params, callback) {
     
     switch(method) {
         case "GET":
-            uri += '?' + _params.join('&').replace(/%20/, '+');
+            uri += '?' + _params.join('&');
             break;
         case "POST":
             _data = _params.join('&');
@@ -120,6 +134,4 @@ LastFM.prototype._xhr = function(method, params, callback) {
     xhr.setRequestHeader("Pragma", "no-cache");*/
     
     xhr.send(_data || null);
-    // TODO remove this
-    console.log(uri);
-};
+}

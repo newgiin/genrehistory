@@ -7,7 +7,7 @@ from google.appengine.ext import ndb, db
 from google.appengine.api import memcache
 import time
 
-lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
+lfm_api = lastfm.LastFm('24836bd9d7043e3c0bc65aa801ba8821')
 CACHE_PRD = 604800 # 1 week
 AT_CACHE_NS = 'artist_tags'
 TAGS_PER_ARTIST = 3

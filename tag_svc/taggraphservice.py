@@ -11,7 +11,7 @@ from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
 from google.appengine.ext import ndb
 
-lfm_api = lastfm.LastFm('39c795e91c62cf9d469392c7c2648c80')
+lfm_api = lastfm.LastFm('24836bd9d7043e3c0bc65aa801ba8821')
 BU_CACHE_NS = 'busy_users'
 
 class TagGraphService(webapp2.RequestHandler):

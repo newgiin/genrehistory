@@ -2,28 +2,79 @@
 <head>
   <title>Last.fm Tag History</title>
   <link rel="stylesheet" type="text/css" href="/css/main.css"/>
+  <style type="text/css">
+    #player_wrapper {
+      margin-left: auto;
+      margin-right: auto;
+      width: 300px;
+      text-align: center;
+    }
+    #player_info {
+      margin: 5px 0px;
+    }
+    #player_controls {
+      margin-top: 5px;
+    }
+    h3 {
+      margin: 3px 0px;
+    }
+    .control {
+      cursor: pointer;
+    }
+    .alignleft {
+      float: left;
+      width:33.33333%;
+      text-align:left;
+    }
+    .aligncenter {
+      float: left;
+      width:33.33333%;
+      text-align:center;
+    }
+    .alignright {
+     float: left;
+     width:33.33333%;
+     text-align:right;
+    }​
+  </style>
 </head>
 <body>
   <div id="wrapper">
     <div id="content">
-      <form id='user_form' method='get' action='/history'>
+      <form id="user_form" method="get" action="/history">
         <a href="/">&laquo;</a>
-        user: <input type='text' id='user_input' name='user'></input>
-        <input type='submit' value='go'></input>
+        user: <input type="text" id="user_input" name="user"></input>
+        <input type="submit" value="go"></input>
       </form>
       <a id="user_link" href="#" target="_blank"></a>
       <br/><br/>
-      <div id='chart'>
+      <div id="chart">
         Getting data...
       </div>
       <br/>
       <button id="showall_btn">show all</button>
       <button id="hideall_btn">hide all</button>
+      <div id="player_wrapper">
+        <div id="player_info">
+          <h3 id="player_date"></h3>
+          <span id="player_song">Rap music</span>
+        </div>
+        <div id="ytplayer"></div>
+        <div id="player_controls">
+          <span class="alignleft"><img class="control" id="prev_btn" src="/img/prev.png" alt="Previous_week"/></span>
+          <span class="aligncenter"><img class="control" id="shfle_btn" src="/img/gi_circ_arrow.png" alt="Shuffle"/></span>
+          <span class="alignright"><img class="control" id="next_btn" src="/img/next.png" alt="Next_week"/></span>
+        </div>
+      </div>
     </div>
   </div>
   <div id="footer">by <a href="http://andruunwien.com">Andrew</a> | Data from <a href="http://last.fm">Last.fm</a></div>
-  <script src='/js/jquery-1.10.2.min.js'></script>
+
+  <script src="/js/jquery-1.10.2.min.js"></script>
+  <script src="/js/swfobject.js"></script>
   <script type="text/javascript" src="/js/highcharts.js"></script>
-  <script type='text/javascript' src="/js/history.js"></script>
+  <script src="/js/lastfm.js"></script>
+  <script src="/js/youtube.js"></script>
+  <script type="text/javascript" src="/js/tag_history.js"></script>
 </body>
 </html>
