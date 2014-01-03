@@ -134,4 +134,5 @@ LastFM.prototype._xhr = function(method, params, callback) {
     xhr.setRequestHeader("Pragma", "no-cache");*/
     
     xhr.send(_data || null);
+    console.log(uri);
 }

@@ -3,15 +3,43 @@ var lfm_api = new LastFM('24836bd9d7043e3c0bc65aa801ba8821');
 var ytplayer = null;
 var youtube_api = new Youtube('AI39si7jF5UfjKldRqlcQboZfiUb_t93M6YJ0nocNOwxisoHNQb7Ym54EzWadArRKF8BoEkc2AOAAddBI7t2xEcibrSeghbXyw');
 
-var tracks = null;
+var tracks = [];
+var played = [];
+var FIRST_RANKS_TO_PLAY = 5;
+
+var curr_week = 0;
 
 $('#user_input').val(user);
 $('#user_link').attr('href', 'http://last.fm/user/' + encodeURIComponent(user)).text(user);
+$('#prev_btn').click(function() {
+    set_week(curr_week - 7*24*3600);
+});
 $('#shfle_btn').click(function() {
-    play_random();
+    play_song();
+});
+$('#next_btn').click(function() {
+    set_week(curr_week + 7*24*3600);
 });
 
 $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
+
+// fix footer
+positionFooter(); 
+function positionFooter() {
+    if($(document.body).height() < $(window).height()){
+        $('#footer').css({
+            position: 'absolute',
+            top:  ( $(window).scrollTop() + $(window).height()
+                  - $('#footer').height() ) + 'px',
+            width: '100%'
+        });
+    } else {
+        $('#footer').css({
+            position: 'static'
+        });
+    }    
+}
+$(window).bind('scroll resize click', positionFooter);
 
 function render(data, status, jqXHR) {
     if (data.error) {
@@ -90,7 +118,7 @@ function render(data, status, jqXHR) {
                     crosshairs: true,
                     formatter: function() {
                         return '<b>' + this.series.name + '</b><br/>' +
-                            'Week of ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' + 
+                            'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' + 
                             this.series.name + ': ' + this.y + '<br/>' +
                             this.point.artists
                     }
@@ -104,8 +132,7 @@ function render(data, status, jqXHR) {
                         point: {
                             events: {
                                 click: function(event) {
-                                    lfm_api.get_weeklytrackchart(user, this.x/1000, 
-                                        this.x/1000 + 7*24*3600, set_player_songs);
+                                    set_week(this.x / 1000);
                                 }
                             }
                         }
@@ -136,30 +163,61 @@ function render(data, status, jqXHR) {
        });
 
     // Setup Youtube player
-    var params = { allowScriptAccess: "always" };
-    var atts = { id: "ytplayer" };
-    swfobject.embedSWF("http://www.youtube.com/v/u6xMzltep_8?enablejsapi=1&playerapiid=ytplayer&version=3",
-                       "ytplayer", "300", "200", "8", null, null, params, atts, on_player_load);
+    var params = { allowScriptAccess: 'always' };
+    var atts = { id: 'ytplayer' };
+    swfobject.embedSWF('http://www.youtube.com/v/u6xMzltep_8?enablejsapi=1&playerapiid=ytplayer' +
+                        '&version=3&fs=0&iv_load_policy=0&rel=0',
+                       'ytplayer', '300', '200', '8', null, null, params, atts);
     }
+}
+
+/*
+* Retrieves weekly track information and plays a song.
+* @param unix timestamp (in seconds) of the start of the week
+*/
+function set_week(week_unix) {
+    curr_week = week_unix;
+    lfm_api.get_weeklytrackchart(user, week_unix, 
+        week_unix + 7*24*3600, set_player_songs);
 }
 
 function set_player_songs(result) {
-    if (result.weeklytrackchart && result.weeklytrackchart.track) {
-        tracks = result.weeklytrackchart.track;
-        $('#player_date').text(Highcharts.dateFormat('%b %e, %Y', 
-            parseInt(result.weeklytrackchart['@attr'].from) * 1000));
-        play_random();
+    if (result.weeklytrackchart) {
+        var from_date = null;
+
+        // set week text
+        if (result.weeklytrackchart['@attr']) {
+            from_date = parseInt(result.weeklytrackchart['@attr'].from);
+        } else {
+            from_date = parseInt(result.weeklytrackchart.from);
+        }
+        $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y', 
+            from_date * 1000));
+
+        // set song text and play
+        if (result.weeklytrackchart.track) {
+            tracks = result.weeklytrackchart.track;
+
+            to_play = []
+            for (var i = 0; i < tracks.length; i++) {
+                to_play.push(i);
+            }
+
+            play_song();
+        } else {
+            tracks = [];
+            $('#player_song').text('--');
+            // TODO set video to static
+        }
     } else {
-        tracks = null;
-        $('#player_date').text('--');
-        $('#player_song').text('--');
-        // TODO set video to static
+        $('#player_date').text('--');        
     }
 }
 
-function play_random() {
-    if (tracks) {
-        var track = tracks[getRandomInt(0, tracks.length)];
+function play_song() {
+    if (tracks.length > 0) {
+        var track = get_song_to_play();
+
         $('#player_song').text(track.artist['#text'] + ' - ' + track.name);
 
         youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1, set_video);
@@ -168,6 +226,36 @@ function play_random() {
     }
 }
 
+/*
+* Randomly choose a song, with priority given to songs with rank <= FIRST_RANKS_TO_PLAY,
+* whenceforth the remaining songs are returned at random.
+*/
+function get_song_to_play() {
+    var track = null;
+
+    var last_toprank_i = -1;
+    for (var i = 0; i < tracks.length; i++) {
+        if (parseInt(tracks[i]['@attr'].rank) <= FIRST_RANKS_TO_PLAY) {
+            last_toprank_i++;
+        }
+    }
+
+    // play random one of the top songs if we can
+    if (last_toprank_i > -1) {
+        track = tracks.splice(getRandomInt(0, last_toprank_i + 1), 1)[0];
+    } else {
+        track = tracks.splice(getRandomInt(0, tracks.length), 1)[0];
+    }
+    played.push(track);
+
+    if (tracks.length == 0) {
+        tracks = played;
+        played = [];        
+    }
+
+    return track;
+} 
+
 function set_video(result) {
     if (result.feed.entry && result.feed.entry.length > 0) {
         var videoId = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
@@ -175,12 +263,14 @@ function set_video(result) {
     }
 }
 
-function on_player_load(e) {
-    if (!e.success) {
-        document.getElementById("#ytplayer").innerHTML = 
-            "You need Flash player 8+ and JavaScript enabled to view this video.";
-    } else {
-        ytplayer = e.ref;
+function onYouTubePlayerReady(playerId) {
+    ytplayer = document.getElementById('ytplayer');
+    ytplayer.addEventListener('onStateChange', 'onPlayerStateChange');
+}
+
+function onPlayerStateChange(newState) {
+    if (newState === 0) { // video ended
+        set_week(curr_week + 7*24*3600);
     }
 }
 
@@ -196,8 +286,8 @@ function getRandomInt(min, max) {
 }
 
 function getParameterByName(name) {
-    name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
-    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+    name = name.replace(/[\[]/, '\\\[').replace(/[\]]/, '\\\]');
+    var regex = new RegExp('[\\?&]' + name + '=([^&#]*)'),
         results = regex.exec(location.search);
-    return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    return results == null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
 }
