@@ -2,7 +2,7 @@ var user = getParameterByName('user');
 var lfm_api = new LastFM('24836bd9d7043e3c0bc65aa801ba8821');
 var ytplayer = null;
 var youtube_api = new Youtube('AI39si7jF5UfjKldRqlcQboZfiUb_t93M6YJ0nocNOwxisoHNQb7Ym54EzWadArRKF8BoEkc2AOAAddBI7t2xEcibrSeghbXyw');
-
+var DEFAULT_VIDEO_ID = 'aYeIGnni5jU';
 var tracks = [];
 var played = [];
 var FIRST_RANKS_TO_PLAY = 5;
@@ -165,7 +165,7 @@ function render(data, status, jqXHR) {
     // Setup Youtube player
     var params = { allowScriptAccess: 'always' };
     var atts = { id: 'ytplayer' };
-    swfobject.embedSWF('http://www.youtube.com/v/u6xMzltep_8?enablejsapi=1&playerapiid=ytplayer' +
+    swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapiid=ytplayer' +
                         '&version=3&fs=0&iv_load_policy=0&rel=0',
                        'ytplayer', '300', '200', '8', null, null, params, atts);
     }
@@ -177,40 +177,29 @@ function render(data, status, jqXHR) {
 */
 function set_week(week_unix) {
     curr_week = week_unix;
+
+    $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y', 
+        week_unix * 1000));
+    $('#player_song').text('loading...');
     lfm_api.get_weeklytrackchart(user, week_unix, 
         week_unix + 7*24*3600, set_player_songs);
 }
 
 function set_player_songs(result) {
-    if (result.weeklytrackchart) {
-        var from_date = null;
+    if (result.weeklytrackchart && result.weeklytrackchart.track) {
+        tracks = result.weeklytrackchart.track;
 
-        // set week text
-        if (result.weeklytrackchart['@attr']) {
-            from_date = parseInt(result.weeklytrackchart['@attr'].from);
-        } else {
-            from_date = parseInt(result.weeklytrackchart.from);
+        to_play = []
+        for (var i = 0; i < tracks.length; i++) {
+            to_play.push(i);
         }
-        $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y', 
-            from_date * 1000));
 
-        // set song text and play
-        if (result.weeklytrackchart.track) {
-            tracks = result.weeklytrackchart.track;
-
-            to_play = []
-            for (var i = 0; i < tracks.length; i++) {
-                to_play.push(i);
-            }
-
-            play_song();
-        } else {
-            tracks = [];
-            $('#player_song').text('--');
-            // TODO set video to static
-        }
-    } else {
-        $('#player_date').text('--');        
+        play_song();
+    } else { 
+        // no songs for this week
+        tracks = [];
+        $('#player_song').text('--');
+        typlayer.loadVideoById(DEFAULT_VIDEO_ID);
     }
 }
 
@@ -222,7 +211,7 @@ function play_song() {
 
         youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1, set_video);
     } else {
-        // TODO set video to static
+        typlayer.loadVideoById(DEFAULT_VIDEO_ID);
     }
 }
 
@@ -260,6 +249,8 @@ function set_video(result) {
     if (result.feed.entry && result.feed.entry.length > 0) {
         var videoId = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
         ytplayer.loadVideoById(videoId);
+    } else { // video not found, get next song to play
+        play_song();
     }
 }
 

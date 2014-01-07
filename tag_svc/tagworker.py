@@ -73,7 +73,7 @@ class _Quota:
                 # with time.sleep()
                 time.sleep(quota_state.next_interval + 0.5 - now)    
             except IOError:
-                # In the unusual request limit is hit
+                # In the rare case request limit is hit
                 # after next_interval is reached
                 pass 
 
@@ -97,7 +97,7 @@ def _process_user(user):
 
     user_entity = models.User.get_by_id(user)
     result = {'user': user, 'weeks': []}
-    tag_graph = {}
+    tag_graph = {} # { tag_name: { plays: num_plays, adj: set_of_related } }
     date_floor = None
 
     if user_entity is None:
