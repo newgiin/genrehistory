@@ -1,54 +1,79 @@
 var user = getParameterByName('user');
-var lfm_api = new LastFM('24836bd9d7043e3c0bc65aa801ba8821');
+var LFM_API_KEY = '24836bd9d7043e3c0bc65aa801ba8821';
+var lfm_api = new LastFM(LFM_API_KEY);
 var ytplayer = null;
 var youtube_api = new Youtube('AI39si7jF5UfjKldRqlcQboZfiUb_t93M6YJ0nocNOwxisoHNQb7Ym54EzWadArRKF8BoEkc2AOAAddBI7t2xEcibrSeghbXyw');
 var DEFAULT_VIDEO_ID = 'aYeIGnni5jU';
 var tracks = [];
 var played = [];
+var week_chart = {}; // { week_from: [prev_from, next_from, curr_to]}
+var curr_week = 0;
 var FIRST_RANKS_TO_PLAY = 5;
 
-var curr_week = 0;
+$.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
+
+// setup Youtube player
+var params = { allowScriptAccess: 'always' };
+var atts = { id: 'ytplayer' };
+swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapiid=ytplayer' +
+                    '&version=3&fs=0&iv_load_policy=0&rel=0',
+                   'ytplayer', '300', '200', '8', null, null, params, atts);
 
 $('#user_input').val(user);
 $('#user_link').attr('href', 'http://last.fm/user/' + encodeURIComponent(user)).text(user);
 $('#prev_btn').click(function() {
-    set_week(curr_week - 7*24*3600);
+    set_week(week_chart[curr_week][0], true);
 });
 $('#shfle_btn').click(function() {
-    play_song();
+    play_song(true);
 });
 $('#next_btn').click(function() {
-    set_week(curr_week + 7*24*3600);
+    set_week(week_chart[curr_week][1], true);
 });
 
-$.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
-
 // fix footer
-positionFooter(); 
-function positionFooter() {
-    if($(document.body).height() < $(window).height()){
-        $('#footer').css({
-            position: 'absolute',
-            top:  ( $(window).scrollTop() + $(window).height()
-                  - $('#footer').height() ) + 'px',
-            width: '100%'
-        });
-    } else {
-        $('#footer').css({
-            position: 'static'
-        });
-    }    
+if($(document.body).height() < $(window).height()){
+    $('#footer').css({
+        position: 'absolute',
+        top:  ( $(window).scrollTop() + $(window).height()
+              - $('#footer').height() ) + 'px',
+        width: '100%'
+    });
+} else {
+    $('#footer').css({
+        position: 'static'
+    });
 }
-$(window).bind('scroll resize click', positionFooter);
 
-function render(data, status, jqXHR) {
+function init_week_chart(data, status) {
+    if (data.error) {
+        alert(data.error + ': ' + data.message);
+    } else {
+        var weeks = data.weeklychartlist.chart;
+        week_chart[parseInt(weeks[0].from)] = [null, parseInt(weeks[1].from), 
+            parseInt(weeks[0].to)];
+        week_chart[parseInt(weeks[weeks.length-1].from)] = 
+            [parseInt(weeks[weeks.length-2].from), null, 
+            parseInt(weeks[weeks.length-1].to)];
+
+        for (var i = 1; i < weeks.length-1; i++) {
+            week_chart[parseInt(weeks[i].from)] = 
+                [parseInt(weeks[i-1].from), parseInt(weeks[i+1].from), parseInt(weeks[i].to)];
+        }
+
+        curr_week = parseInt(weeks[weeks.length-1].from);
+        set_week(curr_week, false);
+    }
+}
+
+function render(data, status) {
     if (data.error) {
         document.getElementById('chart').innerHTML = data.error;
     } else if (data.status) {
         document.getElementById('chart').innerHTML = data.status;
     } else {
         var tags = {} // tagName => [{x, y, artists}, ...]
-        for (var w_i = data.weeks.length-1; w_i >= 0; w_i--) {
+        for (var w_i = 0; w_i < data.weeks.length; w_i++) {
             var week = data.weeks[w_i];
             for (var t_i = 0; t_i < week.tags.length; t_i++) {
                 var tag_obj = week.tags[t_i];
@@ -83,8 +108,7 @@ function render(data, status, jqXHR) {
             series.push({
                 name: tag, 
                 data: tags[tag],
-                step: 'left',
-                pointInterval: 7 * 24 * 3600 * 1000
+                step: 'left'
             });
         }
 
@@ -105,7 +129,7 @@ function render(data, status, jqXHR) {
                     dateTimeLabelFormats: {
                         week: '%e. %b'
                     },
-                    maxZoom: 7 * 24 * 3600 * 1000
+                    minRange: 7 * 24 * 3600 * 1000
                 },
                 yAxis: {
                     title: {
@@ -132,7 +156,7 @@ function render(data, status, jqXHR) {
                         point: {
                             events: {
                                 click: function(event) {
-                                    set_week(this.x / 1000);
+                                    set_week(this.x / 1000, true);
                                 }
                             }
                         }
@@ -160,14 +184,8 @@ function render(data, status, jqXHR) {
                 }
             });
 
-       });
-
-    // Setup Youtube player
-    var params = { allowScriptAccess: 'always' };
-    var atts = { id: 'ytplayer' };
-    swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapiid=ytplayer' +
-                        '&version=3&fs=0&iv_load_policy=0&rel=0',
-                       'ytplayer', '300', '200', '8', null, null, params, atts);
+        });
+        $('#player_wrapper').css('display', 'block');
     }
 }
 
@@ -175,17 +193,24 @@ function render(data, status, jqXHR) {
 * Retrieves weekly track information and plays a song.
 * @param unix timestamp (in seconds) of the start of the week
 */
-function set_week(week_unix) {
-    curr_week = week_unix;
+function set_week(week_unix, autoplay) {
+    if (week_unix != null) {
+        curr_week = week_unix;
 
-    $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y', 
-        week_unix * 1000));
-    $('#player_song').text('loading...');
-    lfm_api.get_weeklytrackchart(user, week_unix, 
-        week_unix + 7*24*3600, set_player_songs);
+        $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y', 
+            week_unix * 1000));
+        $('#player_song').text('loading...');
+        lfm_api.get_weeklytrackchart(user, week_unix,
+            week_chart[week_unix][2], 
+                function(result) { set_player_songs(result, autoplay) });
+    } else {
+        $('#player_date').text('--');
+        $('#player_song').text('--');
+        ytplayer.loadVideoById(DEFAULT_VIDEO_ID);   
+    }
 }
 
-function set_player_songs(result) {
+function set_player_songs(result, autoplay) {
     if (result.weeklytrackchart && result.weeklytrackchart.track) {
         tracks = result.weeklytrackchart.track;
 
@@ -194,24 +219,35 @@ function set_player_songs(result) {
             to_play.push(i);
         }
 
-        play_song();
+        play_song(autoplay);
     } else { 
         // no songs for this week
         tracks = [];
         $('#player_song').text('--');
-        typlayer.loadVideoById(DEFAULT_VIDEO_ID);
+        ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
     }
 }
 
-function play_song() {
+function play_song(autoplay) {
     if (tracks.length > 0) {
         var track = get_song_to_play();
 
         $('#player_song').text(track.artist['#text'] + ' - ' + track.name);
 
-        youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1, set_video);
+        youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1, 
+            function(result) {
+                if (result.feed.entry && result.feed.entry.length > 0) {
+                    var videoId = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
+                    ytplayer.loadVideoById(videoId);
+                    if (!autoplay) {
+                        ytplayer.stopVideo();
+                    }
+                } else { // video not found, get next song to play
+                    play_song(true);
+                }                
+            });
     } else {
-        typlayer.loadVideoById(DEFAULT_VIDEO_ID);
+        ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
     }
 }
 
@@ -243,25 +279,19 @@ function get_song_to_play() {
     }
 
     return track;
-} 
-
-function set_video(result) {
-    if (result.feed.entry && result.feed.entry.length > 0) {
-        var videoId = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
-        ytplayer.loadVideoById(videoId);
-    } else { // video not found, get next song to play
-        play_song();
-    }
 }
 
 function onYouTubePlayerReady(playerId) {
     ytplayer = document.getElementById('ytplayer');
     ytplayer.addEventListener('onStateChange', 'onPlayerStateChange');
+    $.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' + 
+            '&user=' + user + '&api_key=' + LFM_API_KEY +
+            '&format=json').done(init_week_chart).fail(disp_error);    
 }
 
 function onPlayerStateChange(newState) {
     if (newState === 0) { // video ended
-        set_week(curr_week + 7*24*3600);
+        set_week(week_chart[curr_week][1], true);
     }
 }
 

@@ -78,8 +78,6 @@ class _Quota:
                 pass 
 
         if time.time() >= quota_state.next_interval:
-            logging.debug('next-interval reached with ' + str(quota_state.num_reqs)
-                + 'requests')
             quota_state.num_reqs = 0
             quota_state.next_interval = time.time() + _Quota.period
 
@@ -109,83 +107,95 @@ def _process_user(user):
 
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
-    for week in reversed(weeks):
-        if int(week['to']) <= date_floor:
-            break
-            
-        week_elem = {'from': week['from'], 
-            'to': week['to'], 'tags':[]}
-        tags = {}
-        top_artists = {}
+    try:
 
-        artists = _Quota.run_with_quota(quota_state,
-            lambda: _get_weeklyartists(user, week['from'], week['to']))
+        for week in weeks:
+            # We continue through a lot of useless weeks because we're populating
+            # from oldest to newest, so that if we have to catch DeadlineExceededError
+            # we can just write current data to datastore and continue
+            # as from where we left off using same logic as handling returning user.
+            if int(week['to']) <= date_floor:
+                continue
 
-        for artist in artists:
-            artist_name = artist['name']
-            artist_plays = int(artist['playcount'])
-            artist_tags = memcache.get(artist_name, 
-                namespace=AT_CACHE_NS)
-            
-            if artist_tags is None:
-                artist_tags = _Quota.run_with_quota(quota_state,
-                    lambda: _get_artisttags(artist_name, artist['mbid'], 
-                        TAGS_PER_ARTIST))
-                memcache.add(artist_name, artist_tags, CACHE_PRD,
+            week_elem = {'from': week['from'], 
+                'to': week['to'], 'tags':[]}
+            tags = {}
+            top_artists = {}
+
+            artists = _Quota.run_with_quota(quota_state,
+                lambda: _get_weeklyartists(user, week['from'], week['to']))
+
+            for artist in artists:
+                artist_name = artist['name']
+                artist_plays = int(artist['playcount'])
+                artist_tags = memcache.get(artist_name, 
                     namespace=AT_CACHE_NS)
+                
+                if artist_tags is None:
+                    artist_tags = _Quota.run_with_quota(quota_state,
+                        lambda: _get_artisttags(artist_name, artist['mbid'], 
+                            TAGS_PER_ARTIST))
+                    memcache.add(artist_name, artist_tags, CACHE_PRD,
+                        namespace=AT_CACHE_NS)
 
-            if artist_tags:
-                tag = artist_tags[0]
-                if tag in tags:
-                    tags[tag] += artist_plays
-                    if (len(top_artists[tag]) < NUM_TOP_ARTISTS):
-                        top_artists[tag].append(artist_name)
-                else:
-                    tags[tag] = artist_plays
-                    top_artists[tag] = [artist_name]
+                if artist_tags:
+                    tag = artist_tags[0]
+                    if tag in tags:
+                        tags[tag] += artist_plays
+                        if (len(top_artists[tag]) < NUM_TOP_ARTISTS):
+                            top_artists[tag].append(artist_name)
+                    else:
+                        tags[tag] = artist_plays
+                        top_artists[tag] = [artist_name]
 
-            for tag in artist_tags:
-                if tag in tag_graph:
-                    tag_graph[tag]['plays'] += artist_plays
-                else:
-                    tag_graph[tag] = {'plays': artist_plays, \
-                                            'adj': set()}
+                for tag in artist_tags:
+                    if tag in tag_graph:
+                        tag_graph[tag]['plays'] += artist_plays
+                    else:
+                        tag_graph[tag] = {'plays': artist_plays, \
+                                                'adj': set()}
 
-                for syn_tag in artist_tags:
-                    if syn_tag != tag:
-                        tag_graph[tag]['adj'].add(syn_tag)
+                    for syn_tag in artist_tags:
+                        if syn_tag != tag:
+                            tag_graph[tag]['adj'].add(syn_tag)
 
-        week_elem['tags'] = [{'tag': k, 'plays': v, 
-                                'artists': top_artists[k]} \
-                                for k,v in tags.iteritems() \
-                                if v >= PLAY_THRESHOLD]
-                                
-        week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
-        week_elem['tags'] = week_elem['tags'][:MAX_TPW]
-        
-        result['weeks'].append(week_elem)
+            week_elem['tags'] = [{'tag': k, 'plays': v, 
+                                    'artists': top_artists[k]} \
+                                    for k,v in tags.iteritems() \
+                                    if v >= PLAY_THRESHOLD]
+                                    
+            week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
+            week_elem['tags'] = week_elem['tags'][:MAX_TPW]
+            
+            result['weeks'].append(week_elem)
 
-    # filter out tags froms graph with plays below theshold
-    lil_tags = set([tag for tag in tag_graph if 
-                    tag_graph[tag]['plays'] < PLAY_THRESHOLD])
-    tag_graph = {tag:v for tag,v in tag_graph.iteritems() 
-        if tag_graph[tag]['plays'] >= PLAY_THRESHOLD}
+        # filter out tags from graph with plays below theshold
+        lil_tags = set([tag for tag in tag_graph if 
+                        tag_graph[tag]['plays'] < PLAY_THRESHOLD])
+        tag_graph = {tag:v for tag,v in tag_graph.iteritems() 
+            if tag_graph[tag]['plays'] >= PLAY_THRESHOLD}
 
-    for tag in tag_graph:
-        tag_graph[tag]['adj'] = {tag for tag in 
-                                    tag_graph[tag]['adj'] if
-                                    tag not in lil_tags}
+        for tag in tag_graph:
+            tag_graph[tag]['adj'] = {tag for tag in 
+                                        tag_graph[tag]['adj'] if
+                                        tag not in lil_tags}
 
+    except google.appengine.runtime.DeadlineExceededError:
+        # For the very small chance that it timed out after appending all the weeks, but
+        # before we filtered out small tags from tag_graph, we may have
+        # more tags in tag_graph than desired until next time we add a week for this
+        # user.
+        logging.error('Caught DeadlineExceededError while processing ' + user)
 
     if user_entity is not None:
         # prepend new history to old history
         old_json = json.loads(user_entity.history)
-        result['weeks'] += old_json['weeks']
+        result['weeks'] = old_json['weeks'] + result['weeks']
         
     json_result = json.dumps(result, allow_nan=False)
 
     user_entity = models.User(key=ndb.Key(models.User, user), 
-        last_updated=int(weeks[-1]['to']),
+        last_updated=int(result['weeks'][-1]['to']),
         history=json_result,
         tag_graph=tag_graph)
 
