@@ -78,8 +78,8 @@ class HistoryService(webapp2.RequestHandler):
 
                 models.BusyUser(key=ndb.Key(models.BusyUser, user)).put()
 
-            self.response.write(
-                json.dumps({'status': 'Data still processing'}))
+            self.response.write(json.dumps({'status': 1, 
+                    'text': 'Data still processing'}))
 
 
 

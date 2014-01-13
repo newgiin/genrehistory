@@ -8,8 +8,15 @@ $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) + '&user=' + encodeURIC
 function render(data, status, jqXHR) {
     if (data.error) {
         document.getElementById('status').innerHTML = data.error;
-    } else if (data.status) {
-        document.getElementById('status').innerHTML = data.status;
+    } else if ('status' in data) {
+        var status_text = '';
+        if (data.status == 1) {
+             status_text = 'Data still processing. First time can take ' + 
+                'around 10 minutes depending how much data you have.';
+        } else {
+            status_text = data.text;
+        }
+        document.getElementById('status').innerHTML = status_text;
     } else {
         var sys = arbor.ParticleSystem(100, 100, 0.5) // create the system with sensible repulsion/stiffness/friction
         sys.parameters({gravity:true}) // use center-gravity to make the graph settle nicely (ymmv)

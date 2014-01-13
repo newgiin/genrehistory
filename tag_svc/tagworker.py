@@ -97,7 +97,8 @@ def _process_user(user):
     result = {'user': user, 'weeks': []}
     tag_graph = {} # { tag_name: { plays: num_plays, adj: set_of_related } }
     date_floor = None
-
+    deadline_exceeded = False
+    
     if user_entity is None:
         user_data = lfm_api.user_getinfo(user)['user']
         date_floor = int(user_data['registered']['unixtime'])
@@ -186,6 +187,7 @@ def _process_user(user):
         # more tags in tag_graph than desired until next time we add a week for this
         # user.
         logging.error('Caught DeadlineExceededError while processing ' + user)
+        deadline_exceeded = True
 
     if user_entity is not None:
         # prepend new history to old history
@@ -201,7 +203,16 @@ def _process_user(user):
 
     user_entity.put()
 
-    ndb.Key(models.BusyUser, user).delete()
+    if deadline_exceeded:
+        # send another request that will finish it
+        try:
+            taskqueue.add(url='/worker', 
+                name=user + str(int(time.time())),
+                params={'user': user})
+        except taskqueue.InvalidTaskNameError:
+            taskqueue.add(url='/worker', params={'user': user})
+    else:        
+        ndb.Key(models.BusyUser, user).delete()
 
     logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
 

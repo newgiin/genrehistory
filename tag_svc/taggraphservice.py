@@ -96,8 +96,8 @@ class TagGraphService(webapp2.RequestHandler):
                     taskqueue.add(url='/worker', params={'user': user})
 
             models.BusyUser(key=ndb.Key(models.BusyUser, user)).put()
-            self.response.write(
-                json.dumps({'status': 'Data still processing'}))
+            self.response.write(json.dumps({'status': 1, 
+                    'text': 'Data still processing'}))
 
 
 

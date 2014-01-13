@@ -37,3 +37,8 @@ body {
 #footer a {
   color: #69FCFF;
 }
+
+#status { 
+  margin-top: 10px;
+  max-width: 400px;
+}

@@ -20,7 +20,6 @@ swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapi
                    'ytplayer', '300', '200', '8', null, null, params, atts);
 
 $('#user_input').val(user);
-$('#user_link').attr('href', 'http://last.fm/user/' + encodeURIComponent(user)).text(user);
 $('#prev_btn').click(function() {
     set_week(week_chart[curr_week][0], true);
 });
@@ -46,9 +45,7 @@ if($(document.body).height() < $(window).height()){
 }
 
 function init_week_chart(data, status) {
-    if (data.error) {
-        alert(data.error + ': ' + data.message);
-    } else {
+    if (!data.error) {
         var weeks = data.weeklychartlist.chart;
         week_chart[parseInt(weeks[0].from)] = [null, parseInt(weeks[1].from), 
             parseInt(weeks[0].to)];
@@ -68,9 +65,16 @@ function init_week_chart(data, status) {
 
 function render(data, status) {
     if (data.error) {
-        document.getElementById('chart').innerHTML = data.error;
-    } else if (data.status) {
-        document.getElementById('chart').innerHTML = data.status;
+        document.getElementById('status').innerHTML = data.error;
+    } else if ('status' in data) {
+        var status_text = '';
+        if (data.status == 1) {
+             status_text = 'Data still processing. First time can take ' + 
+                'around 10 minutes depending how much data you have.';
+        } else {
+            status_text = data.text;
+        }
+        document.getElementById('status').innerHTML = status_text;
     } else {
         var tags = {} // tagName => [{x, y, artists}, ...]
         for (var w_i = 0; w_i < data.weeks.length; w_i++) {
@@ -115,7 +119,9 @@ function render(data, status) {
         $(function () {
             $('#chart').highcharts({
                 title: {
-                    text: 'Tag History for ' + user
+                    text: 'Tag History for <a href="http://www.last.fm/user/' + 
+                        encodeURIComponent(user) + '" target="_blank">' + user + '</a>',
+                    useHTML: true
                 },
                 chart: {
                     zoomType: 'x'
@@ -138,7 +144,6 @@ function render(data, status) {
                     min: 0
                 },
                 tooltip: {
-                    useHTML: true,
                     crosshairs: true,
                     formatter: function() {
                         return '<b>' + this.series.name + '</b><br/>' +
@@ -185,6 +190,8 @@ function render(data, status) {
             });
 
         });
+        $('#status').css('visibility', 'hidden');
+        $('#app_wrapper').css('visibility', 'visible');
         $('#player_wrapper').css('display', 'block');
     }
 }

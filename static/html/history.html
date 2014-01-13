@@ -14,6 +14,9 @@
       text-align: center;
       display: none;
     }
+    #app_wrapper {
+      visibility: hidden;
+    }
     #player_info {
       margin: 5px 0px;
     }
@@ -51,24 +54,24 @@
         user: <input type="text" id="user_input" name="user"></input>
         <input type="submit" value="go"></input>
       </form>
-      <a id="user_link" href="#" target="_blank"></a>
-      <br/><br/>
-      <div id="chart">
-        Getting data...
-      </div>
-      <br/>
-      <button id="showall_btn">show all</button>
-      <button id="hideall_btn">hide all</button>
-      <div id="player_wrapper">
-        <div id="player_info">
-          <h3 id="player_date"></h3>
-          <span id="player_song"></span>
+      <div id="status">Getting data...</div>
+      <div id="app_wrapper">
+        <div id="chart">
         </div>
-        <div id="ytplayer">You need Flash player 8+ and JavaScript enabled to view this video.</div>
-        <div id="player_controls">
-          <span class="alignleft"><img class="control" id="prev_btn" src="/img/prev.png" alt="Previous_week"/></span>
-          <span class="aligncenter"><img class="control" id="shfle_btn" src="/img/gi_circ_arrow.png" alt="Shuffle"/></span>
-          <span class="alignright"><img class="control" id="next_btn" src="/img/next.png" alt="Next_week"/></span>
+        <br/>
+        <button id="showall_btn">show all</button>
+        <button id="hideall_btn">hide all</button>
+        <div id="player_wrapper">
+          <div id="player_info">
+            <h3 id="player_date"></h3>
+            <span id="player_song"></span>
+          </div>
+          <div id="ytplayer">You need Flash player 8+ and JavaScript enabled to view this video.</div>
+          <div id="player_controls">
+            <span class="alignleft"><img class="control" id="prev_btn" src="/img/prev.png" alt="Previous_week"/></span>
+            <span class="aligncenter"><img class="control" id="shfle_btn" src="/img/gi_circ_arrow.png" alt="Shuffle"/></span>
+            <span class="alignright"><img class="control" id="next_btn" src="/img/next.png" alt="Next_week"/></span>
+          </div>
         </div>
       </div>
     </div>
