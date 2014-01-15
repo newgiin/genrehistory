@@ -96,6 +96,9 @@ class TagGraphService(webapp2.RequestHandler):
                     taskqueue.add(url='/worker', params={'user': user})
 
             models.BusyUser(key=ndb.Key(models.BusyUser, user)).put()
+
+            self.response.headers['Cache-Control'] = \
+                'no-transform,public,max-age=60'
             self.response.write(json.dumps({'status': 1, 
                     'text': 'Data still processing'}))
 
