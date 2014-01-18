@@ -58,7 +58,7 @@ class TagGraphService(webapp2.RequestHandler):
         weeks = gwi_json['weeklychartlist']['chart']
         
         try:
-            user_entity = models.User.get_by_id(user)
+            graph_entity = models.TagGraph.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
             logging.error(e)
             self.response.write(
@@ -66,9 +66,9 @@ class TagGraphService(webapp2.RequestHandler):
                     atnguyen4@gmail.com to buy more Google resources.'}))
             return
 
-        if (user_entity is not None 
-                and user_entity.last_updated >= int(weeks[-1]['to'])):
-            tag_graph = user_entity.tag_graph
+        if (graph_entity is not None 
+                and graph_entity.last_updated >= int(weeks[-1]['to'])):
+            tag_graph = graph_entity.tag_graph
 
             tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])} 
                             for tag, v in tag_graph.iteritems()]
@@ -99,8 +99,12 @@ class TagGraphService(webapp2.RequestHandler):
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=60'
-            self.response.write(json.dumps({'status': 1, 
-                    'text': 'Data still processing'}))
+
+            resp_data = {'status': 1, 'text': 'Data still processing'}
+            if hist_entity is not None:
+                resp_data['last_updated'] = hist_entity.last_updated
+                
+            self.response.write(json.dumps(resp_data))
 
 
 

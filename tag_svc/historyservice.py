@@ -57,16 +57,16 @@ class HistoryService(webapp2.RequestHandler):
         weeks = gwi_json['weeklychartlist']['chart']
         
         try:
-            user_entity = models.User.get_by_id(user)
+            hist_entity = models.TagHistory.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
             self.response.write(
                 json.dumps({'error': 'AppEngine error. Go tell \
                     atnguyen4@gmail.com to buy more Google resources.'}))
             return
 
-        if (user_entity is not None 
-                and user_entity.last_updated >= int(weeks[-1]['to'])):
-            self.response.write(user_entity.history)
+        if (hist_entity is not None 
+                and hist_entity.last_updated >= int(weeks[-1]['to'])):
+            self.response.write(hist_entity.history)
         else:
             if models.BusyUser.get_by_id(user) is None:
                 try:
@@ -80,8 +80,12 @@ class HistoryService(webapp2.RequestHandler):
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=60'
-            self.response.write(json.dumps({'status': 1, 
-                    'text': 'Data still processing'}))
+            
+            resp_data = {'status': 1, 'text': 'Data still processing'}
+            if hist_entity is not None:
+                resp_data['last_updated'] = hist_entity.last_updated
+                
+            self.response.write(json.dumps(resp_data))
 
 
 

@@ -93,18 +93,20 @@ def _process_user(user):
     start = time.time()
     quota_state = _QuotaState(0, time.time() + _Quota.period)
 
-    user_entity = models.User.get_by_id(user)
-    result = {'user': user, 'weeks': []}
+    hist_entity = models.TagHistory.get_by_id(user)
+    graph_entity = models.TagGraph.get_by_id(user)
+
+    tag_history = {'user': user, 'weeks': []}
     tag_graph = {} # { tag_name: { plays: num_plays, adj: set_of_related } }
     date_floor = None
     deadline_exceeded = False
     
-    if user_entity is None:
+    if hist_entity is None:
         user_data = lfm_api.user_getinfo(user)['user']
         date_floor = int(user_data['registered']['unixtime'])
     else:
-        date_floor = user_entity.last_updated
-        tag_graph = user_entity.tag_graph
+        date_floor = hist_entity.last_updated
+        tag_graph = graph_entity.tag_graph
 
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
@@ -168,7 +170,7 @@ def _process_user(user):
             week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
             week_elem['tags'] = week_elem['tags'][:MAX_TPW]
             
-            result['weeks'].append(week_elem)
+            tag_history['weeks'].append(week_elem)
 
         # filter out tags from graph with plays below theshold
         lil_tags = set([tag for tag in tag_graph if 
@@ -189,19 +191,24 @@ def _process_user(user):
         logging.error('Caught DeadlineExceededError while processing ' + user)
         deadline_exceeded = True
 
-    if user_entity is not None:
+    if hist_entity is not None:
         # prepend new history to old history
-        old_json = json.loads(user_entity.history)
-        result['weeks'] = old_json['weeks'] + result['weeks']
+        old_json = json.loads(hist_entity.history)
+        tag_history['weeks'] = old_json['weeks'] + tag_history['weeks']
         
-    json_result = json.dumps(result, allow_nan=False)
+    json_result = json.dumps(tag_history, allow_nan=False)
 
-    user_entity = models.User(key=ndb.Key(models.User, user), 
-        last_updated=int(result['weeks'][-1]['to']),
-        history=json_result,
+    hist_entity = models.TagHistory(key=ndb.Key(models.TagHistory, user), 
+        last_updated=int(tag_history['weeks'][-1]['to']),
+        history=json_result)
+
+    hist_entity.put()
+
+    graph_entity = models.TagGraph(key=ndb.Key(models.TagGraph, user), 
+        last_updated=int(tag_history['weeks'][-1]['to']),
         tag_graph=tag_graph)
 
-    user_entity.put()
+    graph_entity.put()
 
     if deadline_exceeded:
         # send another request that will finish it
