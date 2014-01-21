@@ -10,3 +10,7 @@ class TagGraph(ndb.Model):
 
 class BusyUser(ndb.Model):
     pass
+
+class LastFmSession(ndb.Model):
+    user = ndb.StringProperty()
+    session_key = ndb.StringProperty()

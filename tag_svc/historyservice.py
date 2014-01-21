@@ -11,7 +11,7 @@ from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
 from google.appengine.ext import ndb
 
-lfm_api = lastfm.LastFm('24836bd9d7043e3c0bc65aa801ba8821')
+lfm_api = lastfm.LastFm()
 
 class HistoryService(webapp2.RequestHandler):
     def get(self):
@@ -76,7 +76,7 @@ class HistoryService(webapp2.RequestHandler):
                 except taskqueue.InvalidTaskNameError:
                     taskqueue.add(url='/worker', params={'user': user})
 
-                models.BusyUser(key=ndb.Key(models.BusyUser, user)).put()
+                models.BusyUser(id=user).put()
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=60'

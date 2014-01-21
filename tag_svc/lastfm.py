@@ -3,10 +3,14 @@ import urllib2
 import urllib
 import json
 import logging
+import hashlib
 from google.appengine.api import urlfetch
 
 class LastFm:
-    def __init__(self, key, secret=''):
+    API_KEY = '24836bd9d7043e3c0bc65aa801ba8821'
+    API_SECRET = '0df4b7481888ab8feb8a967e9f1ddd3b'
+
+    def __init__(self, key=API_KEY, secret=API_SECRET):
         self.API_ROOT = 'http://ws.audioscrobbler.com/2.0/'
         self.API_KEY = key
         self.API_SECRET = secret
@@ -54,6 +58,28 @@ class LastFm:
             params['mbid'] = mbid
 
         return self.xhr(params)
+
+    def auth_getsession(self, token):
+        params = {
+            'method': 'auth.getSession',
+            'api_key': self.API_KEY,
+            'token': token
+        }
+
+        params['api_sig'] = self._get_signature(params)
+        params['format'] = 'json'
+
+        return self.xhr(params)
+
+    def _get_signature(self, params):
+        m = hashlib.md5()
+        
+        for param in sorted(params.keys()):
+            m.update(param + params[param].encode('utf-8'))
+
+        m.update(self.API_SECRET)
+
+        return m.hexdigest()
 
     def xhr(self, params):
         url = self.API_ROOT + '?' + urllib.urlencode(params)

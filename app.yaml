@@ -21,6 +21,10 @@ handlers:
 - url: /tag_graph_data
   script: tag_svc.taggraphservice.app
 
+- url: /admin
+  script: admin.app
+  login: admin
+
 # Static files mapped below
 - url: /history
   mime_type: text/html

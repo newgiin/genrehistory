@@ -7,7 +7,7 @@ from google.appengine.ext import ndb, db
 from google.appengine.api import memcache
 import time
 
-lfm_api = lastfm.LastFm('24836bd9d7043e3c0bc65aa801ba8821')
+lfm_api = lastfm.LastFm()
 CACHE_PRD = 604800 # 1 week
 AT_CACHE_NS = 'artist_tags'
 TAGS_PER_ARTIST = 3
@@ -198,13 +198,13 @@ def _process_user(user):
         
     json_result = json.dumps(tag_history, allow_nan=False)
 
-    hist_entity = models.TagHistory(key=ndb.Key(models.TagHistory, user), 
+    hist_entity = models.TagHistory(id=user, 
         last_updated=int(tag_history['weeks'][-1]['to']),
         history=json_result)
 
     hist_entity.put()
 
-    graph_entity = models.TagGraph(key=ndb.Key(models.TagGraph, user), 
+    graph_entity = models.TagGraph(id=user, 
         last_updated=int(tag_history['weeks'][-1]['to']),
         tag_graph=tag_graph)
 
@@ -218,7 +218,7 @@ def _process_user(user):
                 params={'user': user})
         except taskqueue.InvalidTaskNameError:
             taskqueue.add(url='/worker', params={'user': user})
-    else:        
+    else:
         ndb.Key(models.BusyUser, user).delete()
 
     logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')

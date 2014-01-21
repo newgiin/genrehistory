@@ -292,7 +292,7 @@ function onYouTubePlayerReady(playerId) {
     ytplayer = document.getElementById('ytplayer');
     ytplayer.addEventListener('onStateChange', 'onPlayerStateChange');
     $.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' + 
-            '&user=' + user + '&api_key=' + LFM_API_KEY +
+            '&user=' + encodeURIComponent(user) + '&api_key=' + LFM_API_KEY +
             '&format=json').done(init_week_chart).fail(disp_error);    
 }
 
