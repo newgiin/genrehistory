@@ -4,7 +4,8 @@ import logging
 import lastfm
 import models
 from google.appengine.ext import ndb, db
-from google.appengine.api import memcache
+from google.appengine.api import memcache, taskqueue
+from google.appengine.runtime import DeadlineExceededError
 import time
 
 lfm_api = lastfm.LastFm()
@@ -111,7 +112,6 @@ def _process_user(user):
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
     try:
-
         for week in weeks:
             # We continue through a lot of useless weeks because we're populating
             # from oldest to newest, so that if we have to catch DeadlineExceededError
@@ -171,7 +171,7 @@ def _process_user(user):
             week_elem['tags'] = week_elem['tags'][:MAX_TPW]
             
             tag_history['weeks'].append(week_elem)
-
+            
         # filter out tags from graph with plays below theshold
         lil_tags = set([tag for tag in tag_graph if 
                         tag_graph[tag]['plays'] < PLAY_THRESHOLD])
@@ -183,7 +183,7 @@ def _process_user(user):
                                         tag_graph[tag]['adj'] if
                                         tag not in lil_tags}
 
-    except google.appengine.runtime.DeadlineExceededError:
+    except DeadlineExceededError:
         # For the very small chance that it timed out after appending all the weeks, but
         # before we filtered out small tags from tag_graph, we may have
         # more tags in tag_graph than desired until next time we add a week for this
