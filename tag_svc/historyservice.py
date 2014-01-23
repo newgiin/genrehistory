@@ -66,7 +66,7 @@ class HistoryService(webapp2.RequestHandler):
 
         if (hist_entity is not None 
                 and hist_entity.last_updated >= int(weeks[-1]['to'])):
-            self.response.write(hist_entity.history)
+            self.response.write(json.dumps(hist_entity.tag_history))
         else:
             if models.BusyUser.get_by_id(user) is None:
                 try:

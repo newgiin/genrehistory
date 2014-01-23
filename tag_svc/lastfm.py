@@ -32,6 +32,8 @@ class LastFm:
             'user': user,
             'format': 'json'
         }
+        # result = self.xhr(params)
+        # result['weeklychartlist']['chart'] = result['weeklychartlist']['chart'][450:]
 
         return self.xhr(params)
 

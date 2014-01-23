@@ -108,6 +108,7 @@ def _process_user(user):
     else:
         date_floor = hist_entity.last_updated
         tag_graph = graph_entity.tag_graph
+        tag_history = hist_entity.tag_history
 
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
@@ -169,9 +170,9 @@ def _process_user(user):
                                     
             week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
             week_elem['tags'] = week_elem['tags'][:MAX_TPW]
-            
+
             tag_history['weeks'].append(week_elem)
-            
+
         # filter out tags from graph with plays below theshold
         lil_tags = set([tag for tag in tag_graph if 
                         tag_graph[tag]['plays'] < PLAY_THRESHOLD])
@@ -191,27 +192,25 @@ def _process_user(user):
         logging.error('Caught DeadlineExceededError while processing ' + user)
         deadline_exceeded = True
 
-    if hist_entity is not None:
-        # prepend new history to old history
-        old_json = json.loads(hist_entity.history)
-        tag_history['weeks'] = old_json['weeks'] + tag_history['weeks']
-        
-    json_result = json.dumps(tag_history, allow_nan=False)
-
     hist_entity = models.TagHistory(id=user, 
         last_updated=int(tag_history['weeks'][-1]['to']),
-        history=json_result)
+        tag_history=tag_history)
 
-    hist_entity.put()
+    hist_future = hist_entity.put_async()
 
     graph_entity = models.TagGraph(id=user, 
         last_updated=int(tag_history['weeks'][-1]['to']),
         tag_graph=tag_graph)
 
-    graph_entity.put()
+    graph_future = graph_entity.put_async()
 
     if deadline_exceeded:
-        # send another request that will finish it
+        # Send another request that will finish it
+        #
+        # Make sure the data is stored first
+        # so the next task can build off it
+        hist_future.get_result()
+        graph_future.get_result()
         try:
             taskqueue.add(url='/worker', 
                 name=user + str(int(time.time())),
@@ -219,12 +218,12 @@ def _process_user(user):
         except taskqueue.InvalidTaskNameError:
             taskqueue.add(url='/worker', params={'user': user})
     else:
-        ndb.Key(models.BusyUser, user).delete()
+        ndb.Key(models.BusyUser, user).delete_async()
 
     logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
 
-
 class TagWorker(webapp2.RequestHandler):
+    @ndb.toplevel
     def post(self):
         user = self.request.get('user')
         db.run_in_transaction(_process_user, user=user)

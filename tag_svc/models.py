@@ -2,7 +2,7 @@ from google.appengine.ext import ndb
 
 class TagHistory(ndb.Model):
     last_updated = ndb.IntegerProperty()
-    history = ndb.JsonProperty()
+    tag_history = ndb.JsonProperty()
 
 class TagGraph(ndb.Model):
     last_updated = ndb.IntegerProperty()

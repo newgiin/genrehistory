@@ -85,7 +85,7 @@ class TagGraphService(webapp2.RequestHandler):
 
                     obj['adj'] = adj
 
-            self.response.write(json.dumps({'tags': tag_objs}))
+            self.response.write(json.dumps({'user': user, 'tags': tag_objs}))
         else:
             if models.BusyUser.get_by_id(user) is None:
                 try:
