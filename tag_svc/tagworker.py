@@ -193,7 +193,6 @@ def _process_user(user):
         # before we filtered out small tags from tag_graph, we may have
         # more tags in tag_graph than desired until next time we add a week for this
         # user.
-        logging.error('Caught DeadlineExceededError while processing ' + user)
         deadline_exceeded = True
 
     hist_entity = models.TagHistory(id=user, 
@@ -209,22 +208,17 @@ def _process_user(user):
     graph_future = graph_entity.put_async()
 
     if deadline_exceeded:
-        # Send another request that will finish it
+        # Raise an Error to force a task restart that will finish it
         #
         # Make sure the data is stored first
         # so the next task can build off it
         hist_future.get_result()
         graph_future.get_result()
-        try:
-            taskqueue.add(url='/worker', 
-                name=user + str(int(time.time())),
-                params={'user': user})
-        except taskqueue.InvalidTaskNameError:
-            taskqueue.add(url='/worker', params={'user': user})
+        raise DeadlineExceededError("DeadlineExceededError for '" + user + 
+            "'' successfully handled. Restarting task...")
     else:
         ndb.Key(models.BusyUser, user).delete_async()
-
-    logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
+        logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
 
 class TagWorker(webapp2.RequestHandler):
     @ndb.toplevel
