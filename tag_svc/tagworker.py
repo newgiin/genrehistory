@@ -92,6 +92,8 @@ class _QuotaState:
 
 def _process_user(user):
     start = time.time()
+
+    user = user.lower()
     quota_state = _QuotaState(0, time.time() + _Quota.period)
 
     hist_entity = models.TagHistory.get_by_id(user)
@@ -110,6 +112,8 @@ def _process_user(user):
         tag_graph = graph_entity.tag_graph
         tag_history = hist_entity.tag_history
 
+    logging.info("Started processing '" + user + 
+                    "' from week " + str(date_floor))
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
     try:

@@ -25,6 +25,8 @@ class TagGraphService(webapp2.RequestHandler):
             self.response.write(
                 json.dumps({'error': 'No user specified.'}))
             return
+        else:
+            user = user.lower()
 
         gwi_json = {}
         
@@ -101,8 +103,8 @@ class TagGraphService(webapp2.RequestHandler):
                 'no-transform,public,max-age=60'
 
             resp_data = {'status': 1, 'text': 'Data still processing'}
-            if hist_entity is not None:
-                resp_data['last_updated'] = hist_entity.last_updated
+            if graph_entity is not None:
+                resp_data['last_updated'] = graph_entity.last_updated
                 
             self.response.write(json.dumps(resp_data))
 

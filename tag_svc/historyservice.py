@@ -24,6 +24,8 @@ class HistoryService(webapp2.RequestHandler):
             self.response.write(
                 json.dumps({'error': 'No user specified.'}))
             return
+        else:
+            user = user.lower()
 
         gwi_json = {}
 
