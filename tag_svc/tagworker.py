@@ -6,6 +6,8 @@ import models
 from google.appengine.ext import ndb, db
 from google.appengine.api import memcache, taskqueue
 from google.appengine.runtime import DeadlineExceededError
+from google.appengine.api.urlfetch_errors import DeadlineExceededError as \
+    UrlFetchDeadlineExceededError
 import time
 
 lfm_api = lastfm.LastFm()
@@ -15,20 +17,27 @@ TAGS_PER_ARTIST = 3
 PLAY_THRESHOLD = 6
 NUM_TOP_ARTISTS = 3
 MAX_TPW = 10 # tags per week
+MAX_REQUEST_TIME = 600 # 10 minutes
+DEADLINE_EXCEED_GRACE_PERIOD = 30
 
 def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
     artists = {}
-    if 'error' in weekly_artists:
-        logging.warning('Error getting top artists for %s in week %s-%s: %s' % 
-            (user, start, end, weekly_artists['error']))
-    elif 'artist' in weekly_artists['weeklyartistchart']:
-        if isinstance(
-                weekly_artists['weeklyartistchart']['artist'], list
-            ):
-            artists = weekly_artists['weeklyartistchart']['artist']
-        else:
-            artist = [weekly_artists['weeklyartistchart']['artist']]
+
+    try:
+        if 'error' in weekly_artists:
+            logging.warning('Error getting top artists for %s in week %s-%s: %s' % 
+                (user, start, end, weekly_artists['error']))
+        elif 'artist' in weekly_artists['weeklyartistchart']:
+            if isinstance(
+                    weekly_artists['weeklyartistchart']['artist'], list
+                ):
+                artists = weekly_artists['weeklyartistchart']['artist']
+            else:
+                artist = [weekly_artists['weeklyartistchart']['artist']]
+    except TypeError:
+        logging.warning('No data getting top artists for %s in week %s-%s' % 
+            (user, start, end))
 
     return artists
 
@@ -57,33 +66,37 @@ class _Quota:
     req_limit = 1500
 
     @staticmethod
-    def run_with_quota(quota_state, f, reqs_used=1):
+    def run_with_quota(start, quota_state, f, *args):
         """
-        Call 'f()' returning the result if the current number of requests 
+        Call 'f(*args)' returning the result if the current number of requests 
         for this period is not over the request limit. Otherwise, sleep until
         the next_interval, reset the current number of requests to zero,
-        and then call 'f()', incrementing quota_state.num_reqs by 'reqs_used'.
+        and then call 'f', incrementing quota_state.num_reqs by 1.
         """
         if quota_state.num_reqs >= _Quota.req_limit:
             now = time.time()
-            logging.debug('Reached request limit, waiting: ' + 
-                str(quota_state.next_interval - now) + 'seconds.')
             try:
                 # To ensure next time.time() >= next_interval,
                 # add half a second due to potential imprecisions
                 # with time.sleep()
-                time.sleep(quota_state.next_interval + 0.5 - now)    
+                wake_time = quota_state.next_interval + 0.5
+                if (wake_time > start + 
+                        MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
+                    raise DeadlineExceededError()
+
+                logging.debug('Reached request limit, waiting: ' + 
+                    str(quota_state.next_interval - now) + 'seconds.')                    
+                time.sleep(wake_time - now)    
             except IOError:
                 # In the rare case request limit is hit
                 # after next_interval is reached
                 pass 
-
         if time.time() >= quota_state.next_interval:
             quota_state.num_reqs = 0
             quota_state.next_interval = time.time() + _Quota.period
 
-        quota_state.num_reqs += reqs_used
-        return f()
+        quota_state.num_reqs += 1
+        return f(*args)
 
 class _QuotaState:
     def __init__(self, num_reqs, next_interval):
@@ -130,8 +143,8 @@ def _process_user(user):
             tags = {}
             top_artists = {}
 
-            artists = _Quota.run_with_quota(quota_state,
-                lambda: _get_weeklyartists(user, week['from'], week['to']))
+            artists = _Quota.run_with_quota(start, quota_state,
+                _get_weeklyartists, user, week['from'], week['to'])
 
             for artist in artists:
                 artist_name = artist['name']
@@ -140,9 +153,9 @@ def _process_user(user):
                     namespace=AT_CACHE_NS)
                 
                 if artist_tags is None:
-                    artist_tags = _Quota.run_with_quota(quota_state,
-                        lambda: _get_artisttags(artist_name, artist['mbid'], 
-                            TAGS_PER_ARTIST))
+                    artist_tags = _Quota.run_with_quota(start, quota_state,
+                        _get_artisttags, artist_name, artist['mbid'], 
+                            TAGS_PER_ARTIST)
                     memcache.add(artist_name, artist_tags, CACHE_PRD,
                         namespace=AT_CACHE_NS)
 
@@ -177,6 +190,11 @@ def _process_user(user):
 
             tag_history['weeks'].append(week_elem)
 
+            if (time.time() - start > 
+                    MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
+                deadline_exceeded = True
+                break
+
         # filter out tags from graph with plays below theshold
         lil_tags = set([tag for tag in tag_graph if 
                         tag_graph[tag]['plays'] < PLAY_THRESHOLD])
@@ -193,6 +211,9 @@ def _process_user(user):
         # before we filtered out small tags from tag_graph, we may have
         # more tags in tag_graph than desired until next time we add a week for this
         # user.
+        deadline_exceeded = True
+    except UrlFetchDeadlineExceededError, e:
+        logging.error(e)
         deadline_exceeded = True
 
     hist_entity = models.TagHistory(id=user, 
@@ -214,8 +235,15 @@ def _process_user(user):
         # so the next task can build off it
         hist_future.get_result()
         graph_future.get_result()
-        raise DeadlineExceededError("DeadlineExceededError for '" + user + 
-            "'' successfully handled. Restarting task...")
+        logging.warning('DeadlineExceededError for ' + user + 
+            ' successfully handled. Restarting task...')
+
+        try:
+            taskqueue.add(url='/worker', 
+                name=user + str(int(time.time())),
+                params={'user': user})
+        except taskqueue.InvalidTaskNameError:
+            taskqueue.add(url='/worker', params={'user': user})
     else:
         ndb.Key(models.BusyUser, user).delete_async()
         logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
@@ -224,7 +252,7 @@ class TagWorker(webapp2.RequestHandler):
     @ndb.toplevel
     def post(self):
         user = self.request.get('user')
-        db.run_in_transaction(_process_user, user=user)
+        _process_user(user)
 
 
 app = webapp2.WSGIApplication([
