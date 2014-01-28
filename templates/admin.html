@@ -8,8 +8,9 @@
 <div id="content">
     <a href="http://www.last.fm/api/auth/?api_key={{lfm_key}}&cb={{cb_url}}">Set Last.fm session</a><br/>
     {% if auth_user %}
-    Currently using authentication with '{{ auth_user }}' <br/>
-    with key: {{ auth_session_key }}
+    Currently sending shouts using '{{ auth_user }}' <br/>
+    with key: {{ auth_session_key }}. <br/><br/>
+    Restart application to apply changes if necessary.
     {% elif auth_error %}
     Authentication error: {{ auth_error }}
     {% endif %}

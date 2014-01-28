@@ -9,6 +9,7 @@ from google.appengine.runtime import DeadlineExceededError
 from google.appengine.api.urlfetch_errors import DeadlineExceededError as \
     UrlFetchDeadlineExceededError
 import time
+import urllib
 
 lfm_api = lastfm.LastFm()
 CACHE_PRD = 604800 # 1 week
@@ -19,6 +20,7 @@ NUM_TOP_ARTISTS = 3
 MAX_TPW = 10 # tags per week
 MAX_REQUEST_TIME = 600 # 10 minutes
 DEADLINE_EXCEED_GRACE_PERIOD = 30
+
 
 def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
@@ -103,7 +105,7 @@ class _QuotaState:
         self.num_reqs = num_reqs
         self.next_interval = next_interval
 
-def _process_user(user):
+def _process_user(request, user):
     start = time.time()
 
     user = user.lower()
@@ -212,7 +214,7 @@ def _process_user(user):
         # more tags in tag_graph than desired until next time we add a week for this
         # user.
         deadline_exceeded = True
-    except UrlFetchDeadlineExceededError, e:
+    except UrlFetchDeadlineExceededError as e:
         logging.error(e)
         deadline_exceeded = True
 
@@ -245,14 +247,31 @@ def _process_user(user):
         except taskqueue.InvalidTaskNameError:
             taskqueue.add(url='/worker', params={'user': user})
     else:
-        ndb.Key(models.BusyUser, user).delete_async()
+        bu_key = ndb.Key(models.BusyUser, user)
+
+        if bu_key.get().shout:
+            msg = 'Your tag visualizations are ready at ' +\
+                    request.host_url + '/history?user=' + urllib.quote(user) +\
+                    ' and ' +\
+                    request.host_url + '/tag_graph?tp=20&user=' + urllib.quote(user)
+
+            try:
+                shout_resp = lfm_api.user_shout(user, msg)
+                if 'status' in shout_resp and shout_resp['status'] == 'ok':
+                    logging.info('Shouted to ' + user)
+                else:
+                    logging.error('Error shouting to ' + user +': ' + str(shout_resp))
+            except lastfm.InvalidSessionError:
+                logging.error('Could not shout. Last.fm session invalid.')
+
+        bu_key.delete_async()
         logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
 
 class TagWorker(webapp2.RequestHandler):
     @ndb.toplevel
     def post(self):
         user = self.request.get('user')
-        _process_user(user)
+        _process_user(self.request, user)
 
 
 app = webapp2.WSGIApplication([

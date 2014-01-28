@@ -11,15 +11,15 @@ handlers:
 - url: /history_data
   script: tag_svc.historyservice.app
 
+- url: /tag_graph_data
+  script: tag_svc.taggraphservice.app
+
+- url: /set_shout
+  script: setshout.app
+
 - url: /worker
   script: tag_svc.tagworker.app
   login: admin
-
-- url: /hist_list
-  script: hist_list.app
-
-- url: /tag_graph_data
-  script: tag_svc.taggraphservice.app
 
 - url: /admin
   script: admin.app

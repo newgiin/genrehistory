@@ -63,18 +63,38 @@ function init_week_chart(data, status) {
     }
 }
 
-function render(data, status) {
+function shout_callback(data) {
     if (data.error) {
-        document.getElementById('status').innerHTML = data.error;
+        alert(data.error);
+    } else {
+        alert('A shout will be left on your Last.fm profile once the data ' +
+            'is ready!');
+    }
+}
+
+function render(data, status) {
+    var status_div = document.getElementById('status');
+
+    if (data.error) {
+        status_div.innerHTML = data.error;
     } else if ('status' in data) {
-        var status_text = '';
         if (data.status == 1) {
-             status_text = 'Data still processing. First time can take ' + 
-                'around 10 minutes depending how much data you have.';
+            status_div.innerHTML = '';
+            var status_text = document.createElement('div');
+            status_text.innerHTML = 'Data still processing. First time could ' + 
+                                        'take > 10 minutes.';
+
+            var shoutBtn = document.createElement('button');
+            shoutBtn.onclick = function () {
+                $.post('/set_shout', {'user': encodeURIComponent(user)}, 
+                    shout_callback, 'json').fail(disp_error);
+            };
+            shoutBtn.innerHTML = 'Shout on my Last.fm <br/> profile when done';
+            status_div.appendChild(status_text);
+            status_div.appendChild(shoutBtn);
         } else {
-            status_text = data.text;
+            status_div.innerHTML = data.text;
         }
-        document.getElementById('status').innerHTML = status_text;
     } else {
         var tags = {} // tagName => [{x, y, artists}, ...]
         for (var w_i = 0; w_i < data.weeks.length; w_i++) {

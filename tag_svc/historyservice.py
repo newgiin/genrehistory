@@ -14,7 +14,7 @@ from google.appengine.ext import ndb
 lfm_api = lastfm.LastFm()
 
 class HistoryService(webapp2.RequestHandler):
-    def get(self):
+    def get(self):   
         self.response.headers['Content-Type'] = 'application/json'
         self.response.headers['Cache-Control'] = \
             'no-transform,public,max-age=300,s-maxage=900'
@@ -39,12 +39,12 @@ class HistoryService(webapp2.RequestHandler):
             gwi_json['message'] = 'Suspended API key'
         except ServiceOfflineError:
             gwi_json['error'] = 11
-            gwi_json['message'] = 'Service temporarily offline. \
-                                        Please try again later.'
+            gwi_json['message'] = 'Service temporarily offline. ' + \
+                                        'Please try again later.'
         except TemporaryError:
             gwi_json['error'] = 16
-            gwi_json['message'] = 'There was a temporary error processing your \
-                                        request. Please try again'
+            gwi_json['message'] = 'There was a temporary error processing your ' + \
+                                        'request. Please try again.'
 
         if 'error' in gwi_json:
             error_msg = ''
@@ -62,8 +62,8 @@ class HistoryService(webapp2.RequestHandler):
             hist_entity = models.TagHistory.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
             self.response.write(
-                json.dumps({'error': 'AppEngine error. Go tell \
-                    atnguyen4@gmail.com to buy more Google resources.'}))
+                json.dumps({'error': 'AppEngine error. Go tell ' + \
+                    'atnguyen4@gmail.com to buy more Google resources.'}))
             return
 
         if (hist_entity is not None 
@@ -78,7 +78,7 @@ class HistoryService(webapp2.RequestHandler):
                 except taskqueue.InvalidTaskNameError:
                     taskqueue.add(url='/worker', params={'user': user})
 
-                models.BusyUser(id=user).put()
+                models.BusyUser(id=user, shout=False).put()
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=60'

@@ -8,12 +8,11 @@ JINJA_ENVIRONMENT = jinja2.Environment(
         loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
         extensions=['jinja2.ext.autoescape'])
 
-SESSION_DS_ID = 'a' # arbitrary
-
 class MainPage(webapp2.RequestHandler):
     def get(self):
         template_values = {'lfm_key': LastFm.API_KEY, 
             'cb_url': self.request.path_url}
+
         if 'token' in self.request.params:
             token = self.request.params['token']
             lfm_api = LastFm()
@@ -24,12 +23,12 @@ class MainPage(webapp2.RequestHandler):
             else:
                 template_values['auth_user'] = resp['session']['name']
                 template_values['auth_session_key'] = resp['session']['key']
-                session_entity = models.LastFmSession(id=SESSION_DS_ID, 
+                session_entity = models.LastFmSession(id=LastFm.API_KEY, 
                     user=resp['session']['name'], 
                     session_key=resp['session']['key'], namespace='admin')
                 session_entity.put()
         else:
-            lfm_session = models.LastFmSession.get_by_id(SESSION_DS_ID, namespace='admin')
+            lfm_session = models.LastFmSession.get_by_id(LastFm.API_KEY, namespace='admin')
             if lfm_session is not None:
                 template_values['auth_user'] = lfm_session.user
                 template_values['auth_session_key'] = lfm_session.session_key

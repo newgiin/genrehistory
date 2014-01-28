@@ -42,3 +42,7 @@ body {
   margin-top: 10px;
   max-width: 400px;
 }
+
+#status div { 
+  margin: 5px;
+}

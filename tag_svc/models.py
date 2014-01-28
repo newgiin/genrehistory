@@ -9,7 +9,7 @@ class TagGraph(ndb.Model):
     tag_graph = ndb.PickleProperty()
 
 class BusyUser(ndb.Model):
-    pass
+    shout = ndb.BooleanProperty()
 
 class LastFmSession(ndb.Model):
     user = ndb.StringProperty()

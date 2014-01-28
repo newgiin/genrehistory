@@ -6,17 +6,28 @@ $('#tp_input').val(tp);
 $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) + '&user=' + encodeURIComponent(user)).done(render).fail(disp_error);
 
 function render(data, status, jqXHR) {
+    var status_div = document.getElementById('status');
+
     if (data.error) {
-        document.getElementById('status').innerHTML = data.error;
+        status_div.innerHTML = data.error;
     } else if ('status' in data) {
-        var status_text = '';
         if (data.status == 1) {
-             status_text = 'Data still processing. First time can take ' + 
-                'around 10 minutes depending how much data you have.';
+            status_div.innerHTML = '';
+            var status_text = document.createElement('div');
+            status_text.innerHTML = 'Data still processing. First time could ' + 
+                                        'take > 10 minutes.';
+
+            var shoutBtn = document.createElement('button');
+            shoutBtn.onclick = function () {
+                $.post('/set_shout', {'user': encodeURIComponent(user)}, 
+                    shout_callback, 'json').fail(disp_error);
+            };
+            shoutBtn.innerHTML = 'Shout on my Last.fm <br/> profile when done';
+            status_div.appendChild(status_text);
+            status_div.appendChild(shoutBtn);
         } else {
-            status_text = data.text;
+            status_div.innerHTML = data.text;
         }
-        document.getElementById('status').innerHTML = status_text;
     } else {
         var sys = arbor.ParticleSystem(100, 100, 0.5) // create the system with sensible repulsion/stiffness/friction
         sys.parameters({gravity:true}) // use center-gravity to make the graph settle nicely (ymmv)
@@ -46,6 +57,15 @@ function render(data, status, jqXHR) {
                 sys.addEdge(sys.getNode(tag), dst);
             }
         }
+    }
+}
+
+function shout_callback(data) {
+    if (data.error) {
+        alert(data.error);
+    } else {
+        alert('A shout will be left on your Last.fm profile once the data ' +
+            'is ready!');
     }
 }
 
