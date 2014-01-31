@@ -57,9 +57,6 @@ function init_week_chart(data, status) {
             week_chart[parseInt(weeks[i].from)] = 
                 [parseInt(weeks[i-1].from), parseInt(weeks[i+1].from), parseInt(weeks[i].to)];
         }
-
-        curr_week = parseInt(weeks[weeks.length-1].from);
-        set_week(curr_week, false);
     }
 }
 

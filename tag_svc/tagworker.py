@@ -3,13 +3,14 @@ import json
 import logging
 import lastfm
 import models
-from google.appengine.ext import ndb, db
+from google.appengine.ext import ndb
 from google.appengine.api import memcache, taskqueue
 from google.appengine.runtime import DeadlineExceededError
 from google.appengine.api.urlfetch_errors import DeadlineExceededError as \
     UrlFetchDeadlineExceededError
 import time
 import urllib
+from google.appengine.api import urlfetch
 
 lfm_api = lastfm.LastFm()
 CACHE_PRD = 604800 # 1 week
@@ -84,7 +85,7 @@ class _Quota:
                 wake_time = quota_state.next_interval + 0.5
                 if (wake_time > start + 
                         MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
-                    raise DeadlineExceededError()
+                    raise DeadlineExceededError
 
                 logging.debug('Reached request limit, waiting: ' + 
                     str(quota_state.next_interval - now) + 'seconds.')                    
@@ -194,8 +195,7 @@ def _process_user(request, user):
 
             if (time.time() - start > 
                     MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
-                deadline_exceeded = True
-                break
+                raise DeadlineExceededError
 
         # filter out tags from graph with plays below theshold
         lil_tags = set([tag for tag in tag_graph if 
@@ -208,71 +208,64 @@ def _process_user(request, user):
                                         tag_graph[tag]['adj'] if
                                         tag not in lil_tags}
 
-    except DeadlineExceededError:
-        # For the very small chance that it timed out after appending all the weeks, but
-        # before we filtered out small tags from tag_graph, we may have
-        # more tags in tag_graph than desired until next time we add a week for this
-        # user.
-        deadline_exceeded = True
-    except UrlFetchDeadlineExceededError as e:
-        logging.error(e)
-        deadline_exceeded = True
+        bu_key = ndb.Key(models.BusyUser, user)
+        bu_entity = bu_key.get()
+        if bu_entity is None:
+            logging.error("Processed " + user + " who wasn't registered as BusyUser.")
+        else:
+            if bu_entity.shout:
+                msg = 'Your tag visualizations are ready at ' +\
+                        request.host_url + '/history?user=' + urllib.quote(user) +\
+                        ' and ' +\
+                        request.host_url + '/tag_graph?tp=20&user=' + urllib.quote(user)
 
+                try:
+                    shout_resp = lfm_api.user_shout(user, msg)
+                    if 'status' in shout_resp and shout_resp['status'] == 'ok':
+                        logging.info('Shouted to ' + user)
+                    else:
+                        logging.error('Error shouting to ' + user +': ' + str(shout_resp))
+                except lastfm.InvalidSessionError:
+                    logging.error('Could not shout. Last.fm session invalid.')
+
+            bu_key.delete_async()
+
+        logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
+    finally:
+        #
+        # Always store what we have, so in case of error 
+        # we can pickup where we leftoff on retry
+        #
+        store_user_data(user, tag_history, tag_graph)
+        logging.debug('Successfully stored tag data for ' + user)
+
+
+@ndb.transactional(xg=True)
+def store_user_data(user, tag_history, tag_graph):
     hist_entity = models.TagHistory(id=user, 
         last_updated=int(tag_history['weeks'][-1]['to']),
         tag_history=tag_history)
 
-    hist_future = hist_entity.put_async()
+    hist_entity.put_async()
 
     graph_entity = models.TagGraph(id=user, 
         last_updated=int(tag_history['weeks'][-1]['to']),
         tag_graph=tag_graph)
 
-    graph_future = graph_entity.put_async()
-
-    if deadline_exceeded:
-        # Raise an Error to force a task restart that will finish it
-        #
-        # Make sure the data is stored first
-        # so the next task can build off it
-        hist_future.get_result()
-        graph_future.get_result()
-        logging.warning('DeadlineExceededError for ' + user + 
-            ' successfully handled. Restarting task...')
-
-        try:
-            taskqueue.add(url='/worker', 
-                name=user + str(int(time.time())),
-                params={'user': user})
-        except taskqueue.InvalidTaskNameError:
-            taskqueue.add(url='/worker', params={'user': user})
-    else:
-        bu_key = ndb.Key(models.BusyUser, user)
-
-        if bu_key.get().shout:
-            msg = 'Your tag visualizations are ready at ' +\
-                    request.host_url + '/history?user=' + urllib.quote(user) +\
-                    ' and ' +\
-                    request.host_url + '/tag_graph?tp=20&user=' + urllib.quote(user)
-
-            try:
-                shout_resp = lfm_api.user_shout(user, msg)
-                if 'status' in shout_resp and shout_resp['status'] == 'ok':
-                    logging.info('Shouted to ' + user)
-                else:
-                    logging.error('Error shouting to ' + user +': ' + str(shout_resp))
-            except lastfm.InvalidSessionError:
-                logging.error('Could not shout. Last.fm session invalid.')
-
-        bu_key.delete_async()
-        logging.info(user + ' took: ' + str(time.time() - start) + ' seconds.')
+    graph_entity.put_async()
 
 class TagWorker(webapp2.RequestHandler):
     @ndb.toplevel
     def post(self):
         user = self.request.get('user')
-        _process_user(self.request, user)
-
+        try:
+            _process_user(self.request, user)
+        except DeadlineExceededError:
+            logging.debug(user + ' request deadline exceeded. Restarting...')
+            self.error(500)
+        except UrlFetchDeadlineExceededError as e: 
+            logging.warning(e)
+            self.error(500)
 
 app = webapp2.WSGIApplication([
     ('/worker', TagWorker)

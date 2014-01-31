@@ -14,7 +14,7 @@ from google.appengine.ext import ndb
 lfm_api = lastfm.LastFm()
 
 class HistoryService(webapp2.RequestHandler):
-    def get(self):   
+    def get(self):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.headers['Cache-Control'] = \
             'no-transform,public,max-age=300,s-maxage=900'
