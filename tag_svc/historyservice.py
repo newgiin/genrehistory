@@ -57,7 +57,7 @@ class HistoryService(webapp2.RequestHandler):
             return
 
         weeks = gwi_json['weeklychartlist']['chart']
-        
+
         try:
             hist_entity = models.TagHistory.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
@@ -66,13 +66,13 @@ class HistoryService(webapp2.RequestHandler):
                     'atnguyen4@gmail.com to buy more Google resources.'}))
             return
 
-        if (hist_entity is not None 
+        if (hist_entity is not None
                 and hist_entity.last_updated >= int(weeks[-1]['to'])):
             self.response.write(json.dumps(hist_entity.tag_history))
         else:
             if models.BusyUser.get_by_id(user) is None:
                 try:
-                    taskqueue.add(url='/worker', 
+                    taskqueue.add(url='/worker',
                         name=user + str(int(time.time())),
                         params={'user': user})
                 except taskqueue.InvalidTaskNameError:
@@ -82,11 +82,11 @@ class HistoryService(webapp2.RequestHandler):
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=60'
-            
+
             resp_data = {'status': 1, 'text': 'Data still processing'}
             if hist_entity is not None:
                 resp_data['last_updated'] = hist_entity.last_updated
-                
+
             self.response.write(json.dumps(resp_data))
 
 

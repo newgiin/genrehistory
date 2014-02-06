@@ -10,7 +10,7 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
-        template_values = {'lfm_key': LastFm.API_KEY, 
+        template_values = {'lfm_key': LastFm.API_KEY,
             'cb_url': self.request.path_url}
 
         if 'token' in self.request.params:
@@ -23,8 +23,8 @@ class MainPage(webapp2.RequestHandler):
             else:
                 template_values['auth_user'] = resp['session']['name']
                 template_values['auth_session_key'] = resp['session']['key']
-                session_entity = models.LastFmSession(id=LastFm.API_KEY, 
-                    user=resp['session']['name'], 
+                session_entity = models.LastFmSession(id=LastFm.API_KEY,
+                    user=resp['session']['name'],
                     session_key=resp['session']['key'], namespace='admin')
                 session_entity.put()
         else:

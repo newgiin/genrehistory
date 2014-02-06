@@ -18,7 +18,7 @@ class TagGraphService(webapp2.RequestHandler):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.headers['Cache-Control'] = \
             'no-transform,public,max-age=300,s-maxage=900'
-                    
+
         user = self.request.get('user')
 
         if not user:
@@ -29,7 +29,7 @@ class TagGraphService(webapp2.RequestHandler):
             user = user.lower()
 
         gwi_json = {}
-        
+
         try:
             gwi_json = lfm_api.user_getweekintervals(user)
         except ExceedRateLimitError:
@@ -58,7 +58,7 @@ class TagGraphService(webapp2.RequestHandler):
             return
 
         weeks = gwi_json['weeklychartlist']['chart']
-        
+
         try:
             graph_entity = models.TagGraph.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
@@ -68,11 +68,11 @@ class TagGraphService(webapp2.RequestHandler):
                     'atnguyen4@gmail.com to buy more Google resources.'}))
             return
 
-        if (graph_entity is not None 
+        if (graph_entity is not None
                 and graph_entity.last_updated >= int(weeks[-1]['to'])):
             tag_graph = graph_entity.tag_graph
 
-            tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])} 
+            tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])}
                             for tag, v in tag_graph.iteritems()]
             tag_objs.sort(key=lambda e: e['plays'], reverse=True)
 
@@ -91,7 +91,7 @@ class TagGraphService(webapp2.RequestHandler):
         else:
             if models.BusyUser.get_by_id(user) is None:
                 try:
-                    taskqueue.add(url='/worker', 
+                    taskqueue.add(url='/worker',
                         name=user + str(int(time.time())),
                         params={'user': user})
                 except taskqueue.InvalidTaskNameError:
@@ -105,7 +105,7 @@ class TagGraphService(webapp2.RequestHandler):
             resp_data = {'status': 1, 'text': 'Data still processing'}
             if graph_entity is not None:
                 resp_data['last_updated'] = graph_entity.last_updated
-                
+
             self.response.write(json.dumps(resp_data))
 
 

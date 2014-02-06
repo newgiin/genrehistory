@@ -56,7 +56,7 @@ class LastFm:
             'to': end,
             'format': 'json'
         }
-        
+
         return self.xhr(params)
 
     def artist_gettoptags(self, artist, mbid=None):
@@ -99,7 +99,7 @@ class LastFm:
 
     def _get_signature(self, params):
         m = hashlib.md5()
-        
+
         for param in sorted(params.keys()):
             m.update(param + params[param].encode('utf-8'))
 
@@ -112,10 +112,10 @@ class LastFm:
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded'
         }
-        
+
         #logging.debug(url)
 
-        result = urlfetch.fetch(url=url, 
+        result = urlfetch.fetch(url=url,
              method=method, headers=headers)
 
         if result.status_code != 200:
