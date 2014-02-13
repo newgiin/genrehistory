@@ -2,8 +2,8 @@
 <html>
 <head>
   <title>Last.fm Tag History</title>
-  <link rel="icon" type="image/ico" href="/favicon.ico"/> 
-  <link rel="stylesheet" type="text/css" href="/css/main.css"/> 
+  <link rel="icon" type="image/ico" href="/favicon.ico"/>
+  <link rel="stylesheet" type="text/css" href="/css/main.css"/>
   <style type="text/css">
     #wrapper {
       margin-bottom: 40px; /* prevent controls from flowing into footer */
@@ -11,21 +11,38 @@
     #player_wrapper {
       margin-left: auto;
       margin-right: auto;
-      width: 300px;
-      text-align: center;
+      width: 650px;
       display: none;
+    }
+    #player_options {
+      width: 300px;
+      height: 220px;
+      border: 1px solid #CCC;
+      float: left;
+      padding: 5px;
+      margin-right: 10px;
+    }
+    #ytplayer_wrapper {
+      width: 300px;
+      float: left;
     }
     #app_wrapper {
       visibility: hidden;
     }
-    #player_info {
-      margin: 5px 0px;
-    }
     #player_controls {
       margin-top: 5px;
     }
+    #player_info {
+      margin-bottom: 10px;
+    }
+    #lastfm_login {
+      font-size: 90%;
+      color: #777;
+    }
     h3 {
       margin: 3px 0px;
+      font-weight: bold;
+      font-size: 100%;
     }
     .control {
       cursor: pointer;
@@ -63,16 +80,22 @@
         <button id="showall_btn">show all</button>
         <button id="hideall_btn">hide all</button>
         <div id="player_wrapper">
-          <div id="player_info">
-            <h3 id="player_date"></h3>
-            <span id="player_song"></span>
+          <div id="player_options">
+            <div id="player_info">
+              <h3 id="player_date"></h3>
+              <span id="player_song"></span>
+              <br/>
+            </div>
+            <span id="lastfm_login"></span>
           </div>
-          <div id="ytplayer">You need Flash player 8+ and JavaScript enabled to view this video.</div>
-          <div id="player_controls">
-            <span class="alignleft"><img class="control" id="prev_btn" src="/img/prev.png" alt="Previous_week"/></span>
-            <span class="aligncenter"><img class="control" id="shfle_btn" src="/img/gi_circ_arrow.png" alt="Shuffle"/></span>
-            <span class="alignright"><img class="control" id="next_btn" src="/img/next.png" alt="Next_week"/></span>
-          </div>
+            <div id="ytplayer_wrapper">
+              <div id="ytplayer">You need Flash player 8+ and JavaScript enabled to view this video.</div>
+              <div id="player_controls">
+                <span class="alignleft"><img class="control" id="prev_btn" src="/img/prev.png" alt="Previous_week"/></span>
+                <span class="aligncenter"><img class="control" id="shfle_btn" src="/img/gi_circ_arrow.png" alt="Shuffle"/></span>
+                <span class="alignright"><img class="control" id="next_btn" src="/img/next.png" alt="Next_week"/></span>
+              </div>
+            </div>
         </div>
       </div>
     </div>
@@ -83,8 +106,10 @@ under <a href="http://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a></div>
   <script src="/js/jquery-1.10.2.min.js"></script>
   <script src="/js/swfobject.js"></script>
   <script type="text/javascript" src="/js/highcharts.js"></script>
+  <script type="text/javascript" src="/js/md5.js"></script>
   <script src="/js/lastfm.js"></script>
   <script src="/js/youtube.js"></script>
+  <script src="/js/timedscrobbler.js"></script>
   <script type="text/javascript" src="/js/tag_history.js"></script>
 </body>
 </html>

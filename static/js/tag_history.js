@@ -1,14 +1,21 @@
 var user = getParameterByName('user');
 var LFM_API_KEY = '24836bd9d7043e3c0bc65aa801ba8821';
-var lfm_api = new LastFM(LFM_API_KEY);
-var ytplayer = null;
+var LFM_SECRET = '0df4b7481888ab8feb8a967e9f1ddd3b';
+var lfm_api = new LastFM(LFM_API_KEY, LFM_SECRET);
+
 var youtube_api = new Youtube('AI39si7jF5UfjKldRqlcQboZfiUb_t93M6YJ0nocNOwxisoHNQb7Ym54EzWadArRKF8BoEkc2AOAAddBI7t2xEcibrSeghbXyw');
+var ytplayer = null;
 var DEFAULT_VIDEO_ID = 'aYeIGnni5jU';
+
 var tracks = [];
 var played = [];
+var FIRST_RANKS_TO_PLAY = 5;
+
 var week_chart = {}; // { week_from: [prev_from, next_from, curr_to]}
 var curr_week = 0;
-var FIRST_RANKS_TO_PLAY = 5;
+
+var scrobbler = new TimedScrobbler();
+var SCROBBLE_POLL_INTERVAL = 5;
 
 $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
 
@@ -18,6 +25,9 @@ var atts = { id: 'ytplayer' };
 swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapiid=ytplayer' +
                     '&version=3&fs=0&iv_load_policy=0&rel=0',
                    'ytplayer', '300', '200', '8', null, null, params, atts);
+
+render_scrobble_link();
+start_scrobble_poll();
 
 $('#user_input').val(user);
 $('#prev_btn').click(function() {
@@ -44,17 +54,77 @@ if($(document.body).height() < $(window).height()){
     });
 }
 
+function start_scrobble_poll() {
+    if (lfm_api.session.key) {
+        setInterval(function() {
+            if (ytplayer.getPlayerState() === 1 && scrobbler.has_song()) {
+                var song = scrobbler.song;
+
+                // because initial getDuration keeps returning 0
+                if (song.track_length === 0) {
+                    song.track_length = ytplayer.getDuration();
+                }
+
+                scrobbler.add_time(SCROBBLE_POLL_INTERVAL, scrobble_song);
+                lfm_api.now_playing(song.artist, song.album, song.track,
+                    function(resp) {});
+            }
+        }, SCROBBLE_POLL_INTERVAL * 1000);
+    }
+}
+
+function scrobble_song(artist, album, title, time) {
+    lfm_api.scrobble(artist, album, title, time,
+        function(response) {
+            if (response.error) {
+                if (response.error == 9) {
+                    // Session expired
+                    clear_session();
+                }
+            }
+        });
+}
+
+function clear_session() {
+    localStorage.removeItem('session_key');
+    localStorage.removeItem('session_name');
+}
+
+function render_scrobble_link() {
+    // Load settings from local storage
+    lfm_api.session.key = localStorage['session_key'] || null;
+    lfm_api.session.name = localStorage['session_name'] || null;
+
+    var default_text = '<a href="http://www.last.fm/api/auth?api_key=' +
+                LFM_API_KEY + '&cb=' + getUrlRoot() + '/auth_callback.html">' +
+                'Login to scrobble</a>';
+
+    var login_elem = $('#lastfm_login');
+    if (lfm_api.session.key == null || lfm_api.session.name == null) {
+        login_elem.html(default_text);
+    } else {
+        login_elem.html('Scrobbling as ' + lfm_api.session.name + ' ');
+        var logout_link = $('<a>')
+        logout_link.click(function() {
+            clear_session();
+            login_elem.html(default_text);
+        }).attr('href', '#').html('[x]');
+
+        login_elem.append(logout_link);
+    }
+}
+
 function init_week_chart(data, status) {
     if (!data.error) {
         var weeks = data.weeklychartlist.chart;
-        week_chart[parseInt(weeks[0].from)] = [null, parseInt(weeks[1].from), 
+        week_chart[parseInt(weeks[0].from)] = [null, parseInt(weeks[1].from),
             parseInt(weeks[0].to)];
-        week_chart[parseInt(weeks[weeks.length-1].from)] = 
-            [parseInt(weeks[weeks.length-2].from), null, 
+        week_chart[parseInt(weeks[weeks.length-1].from)] =
+            [parseInt(weeks[weeks.length-2].from), null,
             parseInt(weeks[weeks.length-1].to)];
 
         for (var i = 1; i < weeks.length-1; i++) {
-            week_chart[parseInt(weeks[i].from)] = 
+            week_chart[parseInt(weeks[i].from)] =
                 [parseInt(weeks[i-1].from), parseInt(weeks[i+1].from), parseInt(weeks[i].to)];
         }
     }
@@ -78,12 +148,12 @@ function render(data, status) {
         if (data.status == 1) {
             status_div.innerHTML = '';
             var status_text = document.createElement('div');
-            status_text.innerHTML = 'Data still processing. First time could ' + 
+            status_text.innerHTML = 'Data still processing. First time could ' +
                                         'take > 10 minutes.';
 
             var shoutBtn = document.createElement('button');
             shoutBtn.onclick = function () {
-                $.post('/set_shout', {'user': encodeURIComponent(user)}, 
+                $.post('/set_shout', {'user': encodeURIComponent(user)},
                     shout_callback, 'json').fail(disp_error);
             };
             shoutBtn.innerHTML = 'Shout on my Last.fm <br/> profile when done';
@@ -99,19 +169,19 @@ function render(data, status) {
             for (var t_i = 0; t_i < week.tags.length; t_i++) {
                 var tag_obj = week.tags[t_i];
                 var data_point = {
-                    x: parseInt(week.from) * 1000, 
+                    x: parseInt(week.from) * 1000,
                     y: parseInt(tag_obj.plays),
                     artists: tag_obj.artists.join(', ')
                 }
                 if (tags[tag_obj.tag]) {
-                    tags[tag_obj.tag].push(data_point) 
+                    tags[tag_obj.tag].push(data_point)
                 } else {
                     tags[tag_obj.tag] = [data_point]
                 }
             }
             // add zero-plays to tags we didn't touch this week so they don't persist
             // into next week
-            var week_tags = $.map(week.tags, function(tag_obj) { 
+            var week_tags = $.map(week.tags, function(tag_obj) {
                 return tag_obj.tag});
             for (var tag in tags) {
                 // only add zero-play if last week's plays was not 0
@@ -127,7 +197,7 @@ function render(data, status) {
         var series = [];
         for (var tag in tags) {
             series.push({
-                name: tag, 
+                name: tag,
                 data: tags[tag],
                 step: 'left'
             });
@@ -136,7 +206,7 @@ function render(data, status) {
         $(function () {
             $('#chart').highcharts({
                 title: {
-                    text: 'Tag History for <a href="http://www.last.fm/user/' + 
+                    text: 'Tag History for <a href="http://www.last.fm/user/' +
                         encodeURIComponent(user) + '" target="_blank">' + user + '</a>',
                     useHTML: true
                 },
@@ -156,7 +226,7 @@ function render(data, status) {
                 },
                 yAxis: {
                     title: {
-                        text: 'plays' 
+                        text: 'plays'
                     },
                     min: 0
                 },
@@ -164,7 +234,7 @@ function render(data, status) {
                     crosshairs: true,
                     formatter: function() {
                         return '<b>' + this.series.name + '</b><br/>' +
-                            'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' + 
+                            'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' +
                             this.series.name + ': ' + this.y + '<br/>' +
                             this.point.artists
                     }
@@ -186,7 +256,7 @@ function render(data, status) {
                 }
             });
 
-            $('#showall_btn').click(function() {  
+            $('#showall_btn').click(function() {
                 var chart = $('#chart').highcharts();
                 var series = chart.series;
                 for (var i = 0; i < series.length; i++) {
@@ -195,7 +265,7 @@ function render(data, status) {
                     }
                 }
             });
-            
+
             $('#hideall_btn').click(function() {
                 var chart = $('#chart').highcharts();
                 var series = chart.series;
@@ -221,34 +291,27 @@ function set_week(week_unix, autoplay) {
     if (week_unix != null) {
         curr_week = week_unix;
 
-        $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y', 
+        $('#player_date').text('Week from ' + Highcharts.dateFormat('%b %e, %Y',
             week_unix * 1000));
         $('#player_song').text('loading...');
+
         lfm_api.get_weeklytrackchart(user, week_unix,
-            week_chart[week_unix][2], 
+            week_chart[week_unix][2],
                 function(result) { set_player_songs(result, autoplay) });
     } else {
         $('#player_date').text('--');
-        $('#player_song').text('--');
-        ytplayer.loadVideoById(DEFAULT_VIDEO_ID);   
+        clear_song();
     }
 }
 
 function set_player_songs(result, autoplay) {
     if (result.weeklytrackchart && result.weeklytrackchart.track) {
         tracks = result.weeklytrackchart.track;
-
-        to_play = []
-        for (var i = 0; i < tracks.length; i++) {
-            to_play.push(i);
-        }
-
         play_song(autoplay);
-    } else { 
+    } else {
         // no songs for this week
         tracks = [];
-        $('#player_song').text('--');
-        ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
+        clear_song();
     }
 }
 
@@ -256,22 +319,31 @@ function play_song(autoplay) {
     if (tracks.length > 0) {
         var track = get_song_to_play();
 
-        $('#player_song').text(track.artist['#text'] + ' - ' + track.name);
+        $('#player_song').text(track.artist['#text'] + ' - ' +
+                                    track.name);
 
-        youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1, 
+        youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1,
             function(result) {
                 if (result.feed.entry && result.feed.entry.length > 0) {
                     var videoId = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
                     ytplayer.loadVideoById(videoId);
+                    // ensure it plays so getDuration() returns non-zero
+                    // TODO still doesn't make getDuration return non-zero
+                    ytplayer.playVideo();
+
+                    scrobbler.set_song(track.artist['#text'], null,
+                        track.name, ytplayer.getDuration());
+
+                    // TODO this doesn't always stop the video
                     if (!autoplay) {
                         ytplayer.stopVideo();
                     }
                 } else { // video not found, get next song to play
                     play_song(true);
-                }                
+                }
             });
     } else {
-        ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
+        clear_song();
     }
 }
 
@@ -299,7 +371,7 @@ function get_song_to_play() {
 
     if (tracks.length == 0) {
         tracks = played;
-        played = [];        
+        played = [];
     }
 
     return track;
@@ -308,9 +380,9 @@ function get_song_to_play() {
 function onYouTubePlayerReady(playerId) {
     ytplayer = document.getElementById('ytplayer');
     ytplayer.addEventListener('onStateChange', 'onPlayerStateChange');
-    $.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' + 
+    $.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' +
             '&user=' + encodeURIComponent(user) + '&api_key=' + LFM_API_KEY +
-            '&format=json').done(init_week_chart).fail(disp_error);    
+            '&format=json').done(init_week_chart).fail(disp_error);
 }
 
 function onPlayerStateChange(newState) {
@@ -321,6 +393,12 @@ function onPlayerStateChange(newState) {
 
 function disp_error(jqxhr, textStatus, error) {
     alert(textStatus + ': ' + error);
+}
+
+function clear_song() {
+    $('#player_song').text('--');
+    scrobbler.clear_song();
+    ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
 }
 
 /*
@@ -335,4 +413,9 @@ function getParameterByName(name) {
     var regex = new RegExp('[\\?&]' + name + '=([^&#]*)'),
         results = regex.exec(location.search);
     return results == null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+}
+
+function getUrlRoot() {
+    return location.protocol + '//' +
+        location.hostname + (location.port ? ':' + location.port: '');
 }
