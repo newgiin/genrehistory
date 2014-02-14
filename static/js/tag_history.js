@@ -387,7 +387,15 @@ function onYouTubePlayerReady(playerId) {
 
 function onPlayerStateChange(newState) {
     if (newState === 0) { // video ended
-        set_week(week_chart[curr_week][1], true);
+        var direction = parseInt(
+            $('#options_form input[name=song_end_action]:checked').val());
+        if (direction < 0) {
+            set_week(week_chart[curr_week][0], true);
+        } else if (direction > 0) {
+            set_week(week_chart[curr_week][1], true);
+        } else {
+            play_song(true);
+        }
     }
 }
 

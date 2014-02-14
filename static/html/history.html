@@ -33,15 +33,25 @@
       margin-top: 5px;
     }
     #player_info {
+      font-weight: bold;
       margin-bottom: 10px;
+    }
+    #player_options {
+      position: relative;
     }
     #lastfm_login {
       font-size: 90%;
       color: #777;
+      position:absolute;
+      margin-bottom: 5px;
+      bottom:0;
+    }
+    #options_form {
+      margin: 5px 0px;
+      font-size: 90%;
     }
     h3 {
       margin: 3px 0px;
-      font-weight: bold;
       font-size: 100%;
     }
     .control {
@@ -82,10 +92,16 @@
         <div id="player_wrapper">
           <div id="player_options">
             <div id="player_info">
-              <h3 id="player_date"></h3>
+              <h3 id="player_date">Click on timeline to play</h3>
               <span id="player_song"></span>
               <br/>
             </div>
+            <form id="options_form">
+              Playlist Direction:<br/>
+              <input type="radio" name="song_end_action" value="-1"/>Past
+              <input type="radio" name="song_end_action" value="0"/>Current
+              <input type="radio" name="song_end_action" value="1" checked/>Future
+            </form>
             <span id="lastfm_login"></span>
           </div>
             <div id="ytplayer_wrapper">
