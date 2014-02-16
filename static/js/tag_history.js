@@ -27,8 +27,11 @@ swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapi
                    'ytplayer', '300', '200', '8', null, null, params, atts);
 
 render_scrobble_link();
-start_scrobble_poll();
+if (lfm_api.session.key) {
+    start_scrobble_poll();
+}
 
+// bindings
 $('#user_input').val(user);
 $('#prev_btn').click(function() {
     set_week(week_chart[curr_week][0], true);
@@ -38,6 +41,13 @@ $('#shfle_btn').click(function() {
 });
 $('#next_btn').click(function() {
     set_week(week_chart[curr_week][1], true);
+});
+$('#mix_mode_toggle').change(function() {
+   if ($(this).is(':checked')) {
+      $('#mix_mode_interval').prop('disabled', false);
+   } else {
+      $('#mix_mode_interval').prop('disabled', true);
+   }
 });
 
 // fix footer
@@ -55,22 +65,15 @@ if($(document.body).height() < $(window).height()){
 }
 
 function start_scrobble_poll() {
-    if (lfm_api.session.key) {
-        setInterval(function() {
-            if (ytplayer.getPlayerState() === 1 && scrobbler.has_song()) {
-                var song = scrobbler.song;
+    setInterval(function() {
+        if (ytplayer.getPlayerState() === 1 && scrobbler.has_song()) {
+            var song = scrobbler.song;
 
-                // because initial getDuration keeps returning 0
-                if (song.track_length === 0) {
-                    song.track_length = ytplayer.getDuration();
-                }
-
-                scrobbler.add_time(SCROBBLE_POLL_INTERVAL, scrobble_song);
-                lfm_api.now_playing(song.artist, song.album, song.track,
-                    function(resp) {});
-            }
-        }, SCROBBLE_POLL_INTERVAL * 1000);
-    }
+            scrobbler.add_time(SCROBBLE_POLL_INTERVAL, scrobble_song);
+            lfm_api.now_playing(song.artist, song.album, song.track,
+                function(resp) {});
+        }
+    }, SCROBBLE_POLL_INTERVAL * 1000);
 }
 
 function scrobble_song(artist, album, title, time) {
@@ -91,7 +94,6 @@ function clear_session() {
 }
 
 function render_scrobble_link() {
-    // Load settings from local storage
     lfm_api.session.key = localStorage['session_key'] || null;
     lfm_api.session.name = localStorage['session_name'] || null;
 
@@ -325,14 +327,28 @@ function play_song(autoplay) {
         youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1,
             function(result) {
                 if (result.feed.entry && result.feed.entry.length > 0) {
-                    var videoId = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
-                    ytplayer.loadVideoById(videoId);
-                    // ensure it plays so getDuration() returns non-zero
-                    // TODO still doesn't make getDuration return non-zero
-                    ytplayer.playVideo();
+                    var video_id = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
+                    var duration = parseInt(
+                        result.feed.entry[0]['media$group']['yt$duration']['seconds']);
 
                     scrobbler.set_song(track.artist['#text'], null,
-                        track.name, ytplayer.getDuration());
+                        track.name, duration);
+
+                    if (document.getElementById('mix_mode_toggle').checked) {
+                        var play_time = 60;
+                        var pt_txt = $('#mix_mode_interval').val();
+                        if ($.isNumeric(pt_txt) &&
+                                parseInt(pt_txt) > 0) {
+                            play_time = parseInt(pt_txt);
+                        }
+
+                        var start_time = duration*(Math.random()*.40 + .30);
+                        ytplayer.loadVideoById({videoId: video_id,
+                            startSeconds: start_time,
+                            endSeconds: start_time + play_time});
+                    } else {
+                        ytplayer.loadVideoById(video_id);
+                    }
 
                     // TODO this doesn't always stop the video
                     if (!autoplay) {

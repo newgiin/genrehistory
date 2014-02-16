@@ -11,21 +11,8 @@ Youtube.prototype.search_videos = function(query, max_results, callback) {
         'q': query.replace('-',' ').replace('|', ' '), // ignore boolean operators
         'max-results': max_results,
         'v': 2,
-        'fields': 'entry(title,media:group(yt:videoid))'
+        'fields': 'entry(media:group(yt:videoid,yt:duration))'
     };
-
-    params.alt = 'json';
-    this._xhr('GET', params,
-        function(result) {
-            callback(result);
-        });
-}
-
-Youtube.prototype.get_video_duration = function(video_id, callback) {
-    var params = {
-        'v': 2,
-        'fields': 'media:group/yt:duration'
-    }
 
     params.alt = 'json';
     this._xhr('GET', params,
@@ -56,10 +43,8 @@ Youtube.prototype._xhr = function(method, params, callback) {
             return;
     }
 
-
     xhr.open(method, uri);
 
-    // TODO: Better error handling
     xhr.onreadystatechange = function() {
         if (xhr.readyState == 4) {
             var reply;
@@ -68,6 +53,7 @@ Youtube.prototype._xhr = function(method, params, callback) {
                 reply = JSON.parse(xhr.responseText);
             }
             catch (e) {
+                console.error(e);
                 reply = null;
             }
 
