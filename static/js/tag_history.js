@@ -16,6 +16,7 @@ var curr_week = 0;
 
 var scrobbler = new TimedScrobbler();
 var SCROBBLE_POLL_INTERVAL = 5;
+var scrobble_poll_id = null;
 
 $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
 
@@ -65,7 +66,7 @@ if($(document.body).height() < $(window).height()){
 }
 
 function start_scrobble_poll() {
-    setInterval(function() {
+    scrobble_poll_id = setInterval(function() {
         if (ytplayer.getPlayerState() === 1 && scrobbler.has_song()) {
             var song = scrobbler.song;
 
@@ -89,6 +90,7 @@ function scrobble_song(artist, album, title, time) {
 }
 
 function clear_session() {
+    lfm_api.session = {};
     localStorage.removeItem('session_key');
     localStorage.removeItem('session_name');
 }
@@ -109,6 +111,7 @@ function render_scrobble_link() {
         var logout_link = $('<a>')
         logout_link.click(function() {
             clear_session();
+            clearInterval(scrobble_poll_id);
             login_elem.html(default_text);
         }).attr('href', '#').html('[x]');
 

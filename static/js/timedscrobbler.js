@@ -5,7 +5,8 @@
 * By default, this will scrobble every 7 minutes or after 70% of
 * the song has been played, whichever happens first.
 *
-* This is a simple scheduler. Client code handles the actual scrobbling.
+* This is a simple scheduler. Client code handles the actual scrobbling
+* via the scrobble function passed into add_time().
 * Used by constructing a TimedScrobbler, calling set_song(),
 * add adding add_time() at intervals of appropriate granularity.
 */
