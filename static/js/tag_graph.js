@@ -11,15 +11,15 @@ function render(data, status, jqXHR) {
     if (data.error) {
         status_div.innerHTML = data.error;
     } else if ('status' in data) {
-        if (data.status == 1) {
+        if (data.status === 1) {
             status_div.innerHTML = '';
             var status_text = document.createElement('div');
-            status_text.innerHTML = 'Data still processing. First time could ' + 
+            status_text.innerHTML = 'Data still processing. First time could ' +
                                         'take > 10 minutes.';
 
             var shoutBtn = document.createElement('button');
             shoutBtn.onclick = function () {
-                $.post('/set_shout', {'user': encodeURIComponent(user)}, 
+                $.post('/set_shout', {'user': encodeURIComponent(user)},
                     shout_callback, 'json').fail(disp_error);
             };
             shoutBtn.innerHTML = 'Shout on my Last.fm <br/> profile when done';
@@ -43,7 +43,7 @@ function render(data, status, jqXHR) {
 
         for (var i = 0; i < data.tags.length; i++) {
             var tag = data.tags[i].tag;
-            var fs = Math.max(MIN_FONT, 
+            var fs = Math.max(MIN_FONT,
                             parseInt(data.tags[i].plays*MAX_FONT / MAX_PLAYS));
             sys.addNode(tag, {font_size: fs, color: '#3096FC'});
 

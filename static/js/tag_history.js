@@ -27,11 +27,6 @@ swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapi
                     '&version=3&fs=0&iv_load_policy=0&rel=0',
                    'ytplayer', '300', '200', '8', null, null, params, atts);
 
-render_scrobble_link();
-if (lfm_api.session.key) {
-    start_scrobble_poll();
-}
-
 // bindings
 $('#user_input').val(user);
 $('#prev_btn').click(function() {
@@ -65,60 +60,10 @@ if($(document.body).height() < $(window).height()){
     });
 }
 
-function start_scrobble_poll() {
-    scrobble_poll_id = setInterval(function() {
-        if (ytplayer.getPlayerState() === 1 && scrobbler.has_song()) {
-            var song = scrobbler.song;
-
-            scrobbler.add_time(SCROBBLE_POLL_INTERVAL, scrobble_song);
-            lfm_api.now_playing(song.artist, song.album, song.track,
-                function(resp) {});
-        }
-    }, SCROBBLE_POLL_INTERVAL * 1000);
-}
-
-function scrobble_song(artist, album, title, time) {
-    lfm_api.scrobble(artist, album, title, time,
-        function(response) {
-            if (response.error) {
-                if (response.error == 9) {
-                    // Session expired
-                    clear_session();
-                }
-            }
-        });
-}
-
-function clear_session() {
-    lfm_api.session = {};
-    localStorage.removeItem('session_key');
-    localStorage.removeItem('session_name');
-}
-
-function render_scrobble_link() {
-    lfm_api.session.key = localStorage['session_key'] || null;
-    lfm_api.session.name = localStorage['session_name'] || null;
-
-    var default_text = '<a href="http://www.last.fm/api/auth?api_key=' +
-                LFM_API_KEY + '&cb=' + getUrlRoot() + '/auth_callback.html">' +
-                'Login to scrobble</a>';
-
-    var login_elem = $('#lastfm_login');
-    if (lfm_api.session.key == null || lfm_api.session.name == null) {
-        login_elem.html(default_text);
-    } else {
-        login_elem.html('Scrobbling as ' + lfm_api.session.name + ' ');
-        var logout_link = $('<a>')
-        logout_link.click(function() {
-            clear_session();
-            clearInterval(scrobble_poll_id);
-            login_elem.html(default_text);
-        }).attr('href', '#').html('[x]');
-
-        login_elem.append(logout_link);
-    }
-}
-
+/**
+* Initialize the week chart containing weekly timestamps
+* used for navigating history via the next/back buttons.
+*/
 function init_week_chart(data, status) {
     if (!data.error) {
         var weeks = data.weeklychartlist.chart;
@@ -135,26 +80,26 @@ function init_week_chart(data, status) {
     }
 }
 
-function shout_callback(data) {
-    if (data.error) {
-        alert(data.error);
-    } else {
-        alert('A shout will be left on your Last.fm profile once the data ' +
-            'is ready!');
-    }
-}
-
+/**
+* Callback to render the page content based on response history data.
+*/
 function render(data, status) {
     var status_div = document.getElementById('status');
 
     if (data.error) {
         status_div.innerHTML = data.error;
     } else if ('status' in data) {
-        if (data.status == 1) {
+        if (data.status === 1) {
             status_div.innerHTML = '';
             var status_text = document.createElement('div');
             status_text.innerHTML = 'Data still processing. First time could ' +
                                         'take > 10 minutes.';
+
+            if (data.last_updated) {
+                status_text.innerHTML += '<br/>Last updated: ' +
+                    Highcharts.dateFormat('%b %e, %Y',
+                        parseInt(data.last_updated) * 1000);
+            }
 
             var shoutBtn = document.createElement('button');
             shoutBtn.onclick = function () {
@@ -168,123 +113,164 @@ function render(data, status) {
             status_div.innerHTML = data.text;
         }
     } else {
-        var tags = {} // tagName => [{x, y, artists}, ...]
-        for (var w_i = 0; w_i < data.weeks.length; w_i++) {
-            var week = data.weeks[w_i];
-            for (var t_i = 0; t_i < week.tags.length; t_i++) {
-                var tag_obj = week.tags[t_i];
-                var data_point = {
-                    x: parseInt(week.from) * 1000,
-                    y: parseInt(tag_obj.plays),
-                    artists: tag_obj.artists.join(', ')
-                }
-                if (tags[tag_obj.tag]) {
-                    tags[tag_obj.tag].push(data_point)
-                } else {
-                    tags[tag_obj.tag] = [data_point]
-                }
+        on_data_ready(data);
+    }
+}
+
+function on_data_ready(data) {
+    render_chart(data);
+
+    lfm_api.session.key = localStorage['session_key'] || null;
+    lfm_api.session.name = localStorage['session_name'] || null;
+
+    render_scrobble_link();
+
+    if (lfm_api.session.key) {
+        start_scrobble_poll();
+    }
+
+    $('#status').css('visibility', 'hidden');
+    $('#app_wrapper').css('visibility', 'visible');
+    $('#player_wrapper').css('display', 'block');
+}
+
+function render_chart(data) {
+    var tags = {} // tagName => [{x, y, artists}, ...]
+
+    for (var w_i = 0; w_i < data.weeks.length; w_i++) {
+        var week = data.weeks[w_i];
+        for (var t_i = 0; t_i < week.tags.length; t_i++) {
+            var tag_obj = week.tags[t_i];
+            var data_point = {
+                x: parseInt(week.from) * 1000,
+                y: parseInt(tag_obj.plays),
+                artists: tag_obj.artists.join(', ')
             }
-            // add zero-plays to tags we didn't touch this week so they don't persist
-            // into next week
-            var week_tags = $.map(week.tags, function(tag_obj) {
-                return tag_obj.tag});
-            for (var tag in tags) {
-                // only add zero-play if last week's plays was not 0
-                if (week_tags.indexOf(tag) < 0 &&
-                        tags[tag][tags[tag].length-1].y != 0) {
-                    tags[tag].push(
-                        {x: parseInt(week.from) * 1000, y: 0, artists: ''}
-                    )
-                }
+            if (tags[tag_obj.tag]) {
+                tags[tag_obj.tag].push(data_point)
+            } else {
+                tags[tag_obj.tag] = [data_point]
             }
         }
-
-        var series = [];
+        // add zero-plays to tags we didn't touch this week so they don't persist
+        // into next week
+        var week_tags = $.map(week.tags, function(tag_obj) {
+            return tag_obj.tag});
         for (var tag in tags) {
-            series.push({
-                name: tag,
-                data: tags[tag],
-                step: 'left'
-            });
+            // only add zero-play if last week's plays was not 0
+            if (week_tags.indexOf(tag) < 0 &&
+                    tags[tag][tags[tag].length-1].y != 0) {
+                tags[tag].push(
+                    {x: parseInt(week.from) * 1000, y: 0, artists: ''}
+                )
+            }
         }
+    }
 
-        $(function () {
-            $('#chart').highcharts({
+    var series = [];
+    for (var tag in tags) {
+        series.push({
+            name: tag,
+            data: tags[tag],
+            step: 'left'
+        });
+    }
+
+    $(function () {
+        $('#chart').highcharts({
+            title: {
+                text: 'Tag History for <a href="http://www.last.fm/user/' +
+                    encodeURIComponent(user) + '" target="_blank">' + user + '</a>',
+                useHTML: true
+            },
+            chart: {
+                zoomType: 'x'
+            },
+            xAxis: {
                 title: {
-                    text: 'Tag History for <a href="http://www.last.fm/user/' +
-                        encodeURIComponent(user) + '" target="_blank">' + user + '</a>',
-                    useHTML: true
+                    text: 'week'
                 },
-                chart: {
-                    zoomType: 'x'
+                startOfWeek: 0,
+                type: 'datetime',
+                dateTimeLabelFormats: {
+                    week: '%e. %b'
                 },
-                xAxis: {
-                    title: {
-                        text: 'week'
+                minRange: 7 * 24 * 3600 * 1000
+            },
+            yAxis: {
+                title: {
+                    text: 'plays'
+                },
+                min: 0
+            },
+            tooltip: {
+                crosshairs: true,
+                formatter: function() {
+                    return '<b>' + this.series.name + '</b><br/>' +
+                        'Week from ' + Highcharts.dateFormat('%b %e, %Y', this.x) + '<br/>' +
+                        this.series.name + ': ' + this.y + '<br/>' +
+                        this.point.artists
+                }
+            },
+            series: series,
+            plotOptions: {
+                series: {
+                    marker: {
+                        enabled: false
                     },
-                    startOfWeek: 0,
-                    type: 'datetime',
-                    dateTimeLabelFormats: {
-                        week: '%e. %b'
-                    },
-                    minRange: 7 * 24 * 3600 * 1000
-                },
-                yAxis: {
-                    title: {
-                        text: 'plays'
-                    },
-                    min: 0
-                },
-                tooltip: {
-                    crosshairs: true,
-                    formatter: function() {
-                        return '<b>' + this.series.name + '</b><br/>' +
-                            'Week from ' + Highcharts.dateFormat('%a, %b %e, %Y', this.x) + '<br/>' +
-                            this.series.name + ': ' + this.y + '<br/>' +
-                            this.point.artists
-                    }
-                },
-                series: series,
-                plotOptions: {
-                    series: {
-                        marker: {
-                            enabled: false
-                        },
-                        point: {
-                            events: {
-                                click: function(event) {
-                                    set_week(this.x / 1000, true);
-                                }
+                    point: {
+                        events: {
+                            click: function(event) {
+                                set_week(this.x / 1000, true);
                             }
                         }
                     }
                 }
-            });
-
-            $('#showall_btn').click(function() {
-                var chart = $('#chart').highcharts();
-                var series = chart.series;
-                for (var i = 0; i < series.length; i++) {
-                    if (!series[i].visible) {
-                        series[i].show();
-                    }
-                }
-            });
-
-            $('#hideall_btn').click(function() {
-                var chart = $('#chart').highcharts();
-                var series = chart.series;
-                for (var i = 0; i < series.length; i++) {
-                    if (series[i].visible) {
-                        series[i].hide();
-                    }
-                }
-            });
-
+            }
         });
-        $('#status').css('visibility', 'hidden');
-        $('#app_wrapper').css('visibility', 'visible');
-        $('#player_wrapper').css('display', 'block');
+
+        $('#showall_btn').click(function() {
+            var chart = $('#chart').highcharts();
+            var series = chart.series;
+            for (var i = 0; i < series.length; i++) {
+                if (!series[i].visible) {
+                    series[i].show();
+                }
+            }
+        });
+
+        $('#hideall_btn').click(function() {
+            var chart = $('#chart').highcharts();
+            var series = chart.series;
+            for (var i = 0; i < series.length; i++) {
+                if (series[i].visible) {
+                    series[i].hide();
+                }
+            }
+        });
+
+    });
+}
+
+function render_scrobble_link() {
+    var default_text = '<a href="http://www.last.fm/api/auth?api_key=' +
+                LFM_API_KEY + '&cb=' + getUrlRoot() + '/auth_callback.html">' +
+                'Login to scrobble</a>';
+
+    var login_elem = $('#lastfm_login');
+
+    if (lfm_api.session.key == null || lfm_api.session.name == null) {
+        login_elem.html(default_text);
+    } else {
+        login_elem.html('Scrobbling as ' + lfm_api.session.name + ' ');
+        var logout_link = $('<a>')
+        logout_link.click(function() {
+            clear_session();
+            clearInterval(scrobble_poll_id);
+            login_elem.html(default_text);
+        }).attr('href', '#').html('[x]');
+
+        login_elem.append(logout_link);
     }
 }
 
@@ -426,6 +412,45 @@ function clear_song() {
     $('#player_song').text('--');
     scrobbler.clear_song();
     ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
+}
+
+function start_scrobble_poll() {
+    scrobble_poll_id = setInterval(function() {
+        if (ytplayer.getPlayerState() === 1 && scrobbler.has_song()) {
+            var song = scrobbler.song;
+
+            scrobbler.add_time(SCROBBLE_POLL_INTERVAL, scrobble_song);
+            lfm_api.now_playing(song.artist, song.album, song.track,
+                function(resp) {});
+        }
+    }, SCROBBLE_POLL_INTERVAL * 1000);
+}
+
+function scrobble_song(artist, album, title, time) {
+    lfm_api.scrobble(artist, album, title, time,
+        function(response) {
+            if (response.error) {
+                if (response.error == 9) {
+                    // Session expired
+                    clear_session();
+                }
+            }
+        });
+}
+
+function clear_session() {
+    lfm_api.session = {};
+    localStorage.removeItem('session_key');
+    localStorage.removeItem('session_name');
+}
+
+function shout_callback(data) {
+    if (data.error) {
+        alert(data.error);
+    } else {
+        alert('A shout will be left on your Last.fm profile once the data ' +
+            'is ready!');
+    }
 }
 
 /*

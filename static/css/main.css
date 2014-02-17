@@ -46,6 +46,7 @@ body {
 
 #status div {
   margin: 5px;
+  line-height: 140%;
 }
 
 hr { display: block; height: 1px;
