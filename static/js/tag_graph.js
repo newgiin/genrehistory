@@ -57,6 +57,8 @@ function render(data, status, jqXHR) {
                 sys.addEdge(sys.getNode(tag), dst);
             }
         }
+
+        $('#viewport').css('display', 'block');
     }
 }
 

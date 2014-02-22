@@ -100,7 +100,7 @@ class TagGraphService(webapp2.RequestHandler):
             models.BusyUser(id=user, shout=False).put()
 
             self.response.headers['Cache-Control'] = \
-                'no-transform,public,max-age=60'
+                'no-transform,public,max-age=30'
 
             resp_data = {'status': 1, 'text': 'Data still processing'}
             if graph_entity is not None:

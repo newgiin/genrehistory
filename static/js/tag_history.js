@@ -268,7 +268,7 @@ function render_scrobble_link() {
             clear_session();
             clearInterval(scrobble_poll_id);
             login_elem.html(default_text);
-        }).attr('href', '#').html('[x]');
+        }).attr('href', 'javascript:void(0)').html('[x]');
 
         login_elem.append(logout_link);
     }
