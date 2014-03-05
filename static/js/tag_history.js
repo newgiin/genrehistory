@@ -331,7 +331,7 @@ function play_song(autoplay) {
                             play_time = parseInt(pt_txt);
                         }
 
-                        var start_time = duration*(Math.random()*.40 + .30);
+                        var start_time = duration*(Math.random()*0.40 + 0.30);
                         ytplayer.loadVideoById({videoId: video_id,
                             startSeconds: start_time,
                             endSeconds: start_time + play_time});
@@ -343,8 +343,11 @@ function play_song(autoplay) {
                     if (!autoplay) {
                         ytplayer.stopVideo();
                     }
-                } else { // video not found, get next song to play
-                    play_song(true);
+                } else {
+                    // video not found, get next song to play from this week
+                    scrobbler.clear_song();
+                    ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
+                    setTimeout(function() {play_song(true);}, 3000);
                 }
             });
     } else {
