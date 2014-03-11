@@ -95,11 +95,11 @@ function render(data, status) {
             status_text.innerHTML = 'Data still processing. First time could ' +
                                         'take > 10 minutes.';
 
+            var update_time = 'Never';
             if (data.last_updated) {
-                status_text.innerHTML += '<br/>Last updated: ' +
-                    Highcharts.dateFormat('%b %e, %Y',
-                        parseInt(data.last_updated) * 1000);
+                 update_time = timestampToDate(parseInt(data.last_updated));
             }
+            status_text.innerHTML += '<br/>Last updated: ' + update_time;
 
             var shoutBtn = document.createElement('button');
             shoutBtn.onclick = function () {
@@ -347,7 +347,7 @@ function play_song(autoplay) {
                     // video not found, get next song to play from this week
                     scrobbler.clear_song();
                     ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
-                    setTimeout(function() {play_song(true);}, 3000);
+                    setTimeout(function() {play_song(true);}, 4000);
                 }
             });
     } else {

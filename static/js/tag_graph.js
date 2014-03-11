@@ -17,6 +17,12 @@ function render(data, status, jqXHR) {
             status_text.innerHTML = 'Data still processing. First time could ' +
                                         'take > 10 minutes.';
 
+            var update_time = 'Never';
+            if (data.last_updated) {
+                 update_time = timestampToDate(parseInt(data.last_updated));
+            }
+            status_text.innerHTML += '<br/>Last updated: ' + update_time;
+
             var shoutBtn = document.createElement('button');
             shoutBtn.onclick = function () {
                 $.post('/set_shout', {'user': encodeURIComponent(user)},
@@ -29,9 +35,9 @@ function render(data, status, jqXHR) {
             status_div.innerHTML = data.text;
         }
     } else {
-        var sys = arbor.ParticleSystem(100, 100, 0.5) // create the system with sensible repulsion/stiffness/friction
-        sys.parameters({gravity:true}) // use center-gravity to make the graph settle nicely (ymmv)
-        sys.renderer = Renderer("#viewport") // our newly created renderer will have its .init() method called shortly by sys...
+        var sys = arbor.ParticleSystem(100, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
+        sys.parameters({gravity:true}); // use center-gravity to make the graph settle nicely (ymmv)
+        sys.renderer = Renderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
 
         var MAX_FONT = 60;
         var MIN_FONT = 10;
@@ -79,5 +85,17 @@ function getParameterByName(name) {
     name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
     var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
         results = regex.exec(location.search);
-    return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
 }
+
+function timestampToDate(timestamp) {
+    var a = new Date(timestamp * 1000);
+    var months = ['Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'];
+    var year = a.getFullYear();
+    var month = months[a.getMonth()];
+    var date = a.getDate();
+    var time = month + ' ' + date + ', ' + year;
+
+    return time;
+ }
