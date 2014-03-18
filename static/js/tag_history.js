@@ -11,7 +11,7 @@ var tracks = [];
 var played = [];
 var FIRST_RANKS_TO_PLAY = 5;
 
-var week_chart = {}; // { week_from: [prev_from, next_from, curr_to]}
+var week_chart = {};
 var curr_week = 0;
 
 var scrobbler = new TimedScrobbler();
@@ -30,13 +30,13 @@ swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapi
 // bindings
 $('#user_input').val(user);
 $('#prev_btn').click(function() {
-    set_week(week_chart[curr_week][0], true);
+    set_week(week_chart[curr_week].prev, true);
 });
 $('#shfle_btn').click(function() {
     play_song(true);
 });
 $('#next_btn').click(function() {
-    set_week(week_chart[curr_week][1], true);
+    set_week(week_chart[curr_week].next, true);
 });
 $('#mix_mode_toggle').change(function() {
    if ($(this).is(':checked')) {
@@ -67,15 +67,24 @@ if($(document.body).height() < $(window).height()){
 function init_week_chart(data, status) {
     if (!data.error) {
         var weeks = data.weeklychartlist.chart;
-        week_chart[parseInt(weeks[0].from)] = [null, parseInt(weeks[1].from),
-            parseInt(weeks[0].to)];
-        week_chart[parseInt(weeks[weeks.length-1].from)] =
-            [parseInt(weeks[weeks.length-2].from), null,
-            parseInt(weeks[weeks.length-1].to)];
+        week_chart[parseInt(weeks[0].from)] = {
+            prev: null,
+            next: parseInt(weeks[1].from),
+            to: parseInt(weeks[0].to)
+        };
+
+        week_chart[parseInt(weeks[weeks.length-1].from)] = {
+            prev: parseInt(weeks[weeks.length-2].from),
+            next: null,
+            to: parseInt(weeks[weeks.length-1].to)
+        };
 
         for (var i = 1; i < weeks.length-1; i++) {
-            week_chart[parseInt(weeks[i].from)] =
-                [parseInt(weeks[i-1].from), parseInt(weeks[i+1].from), parseInt(weeks[i].to)];
+            week_chart[parseInt(weeks[i].from)] = {
+                prev: parseInt(weeks[i-1].from),
+                next: parseInt(weeks[i+1].from),
+                to: parseInt(weeks[i].to)
+            };
         }
     }
 }
@@ -176,79 +185,76 @@ function render_chart(data) {
         });
     }
 
-    $(function () {
-        $('#chart').highcharts({
+    $('#chart').highcharts({
+        title: {
+            text: 'Tag History for <a href="http://www.last.fm/user/' +
+                encodeURIComponent(user) + '" target="_blank">' + user + '</a>',
+            useHTML: true
+        },
+        chart: {
+            zoomType: 'x'
+        },
+        xAxis: {
             title: {
-                text: 'Tag History for <a href="http://www.last.fm/user/' +
-                    encodeURIComponent(user) + '" target="_blank">' + user + '</a>',
-                useHTML: true
+                text: 'week'
             },
-            chart: {
-                zoomType: 'x'
+            startOfWeek: 0,
+            type: 'datetime',
+            dateTimeLabelFormats: {
+                week: '%e. %b'
             },
-            xAxis: {
-                title: {
-                    text: 'week'
+            minRange: 7 * 24 * 3600 * 1000
+        },
+        yAxis: {
+            title: {
+                text: 'plays'
+            },
+            min: 0
+        },
+        tooltip: {
+            crosshairs: true,
+            formatter: function() {
+                return '<b>' + this.series.name + '</b><br/>' +
+                    'Week from ' + Highcharts.dateFormat('%b %e, %Y', this.x) + '<br/>' +
+                    this.series.name + ': ' + this.y + '<br/>' +
+                    this.point.artists
+            }
+        },
+        series: series,
+        plotOptions: {
+            series: {
+                marker: {
+                    enabled: false
                 },
-                startOfWeek: 0,
-                type: 'datetime',
-                dateTimeLabelFormats: {
-                    week: '%e. %b'
-                },
-                minRange: 7 * 24 * 3600 * 1000
-            },
-            yAxis: {
-                title: {
-                    text: 'plays'
-                },
-                min: 0
-            },
-            tooltip: {
-                crosshairs: true,
-                formatter: function() {
-                    return '<b>' + this.series.name + '</b><br/>' +
-                        'Week from ' + Highcharts.dateFormat('%b %e, %Y', this.x) + '<br/>' +
-                        this.series.name + ': ' + this.y + '<br/>' +
-                        this.point.artists
-                }
-            },
-            series: series,
-            plotOptions: {
-                series: {
-                    marker: {
-                        enabled: false
-                    },
-                    point: {
-                        events: {
-                            click: function(event) {
-                                set_week(this.x / 1000, true);
-                            }
+                point: {
+                    events: {
+                        click: function(event) {
+                            set_week(this.x / 1000, true);
                         }
                     }
                 }
             }
-        });
+        }
+    });
 
-        $('#showall_btn').click(function() {
-            var chart = $('#chart').highcharts();
-            var series = chart.series;
-            for (var i = 0; i < series.length; i++) {
-                if (!series[i].visible) {
-                    series[i].show();
-                }
+    $('#showall_btn').click(function() {
+        var chart = $('#chart').highcharts();
+        var series = chart.series;
+        for (var i = 0; i < series.length; i++) {
+            if (!series[i].visible) {
+                series[i].show();
             }
-        });
+        }
+    });
 
-        $('#hideall_btn').click(function() {
-            var chart = $('#chart').highcharts();
-            var series = chart.series;
-            for (var i = 0; i < series.length; i++) {
-                if (series[i].visible) {
-                    series[i].hide();
-                }
+    $('#hideall_btn').click(function() {
+        var chart = $('#chart').highcharts();
+        var series = chart.series;
+        for (var i = 0; i < series.length; i++) {
+            if (series[i].visible) {
+                series[i].hide();
             }
-        });
-
+        }
     });
 }
 
@@ -287,8 +293,8 @@ function set_week(week_unix, autoplay) {
         $('#player_song').text('loading...');
 
         lfm_api.get_weeklytrackchart(user, week_unix,
-            week_chart[week_unix][2],
-                function(result) { set_player_songs(result, autoplay) });
+            week_chart[week_unix].to,
+                function(result) { set_player_songs(result, autoplay); });
     } else {
         $('#player_date').text('--');
         clear_song();
@@ -363,10 +369,10 @@ function get_song_to_play() {
     var track = null;
 
     var last_toprank_i = -1;
-    for (var i = 0; i < tracks.length; i++) {
-        if (parseInt(tracks[i]['@attr'].rank) <= FIRST_RANKS_TO_PLAY) {
-            last_toprank_i++;
-        }
+    for (var i = 0; i < tracks.length &&
+            parseInt(tracks[i]['@attr'].rank) <= FIRST_RANKS_TO_PLAY;
+            i++) {
+        last_toprank_i++;
     }
 
     // play random one of the top songs if we can
@@ -398,9 +404,9 @@ function onPlayerStateChange(newState) {
         var direction = parseInt(
             $('#options_form input[name=song_end_action]:checked').val());
         if (direction < 0) {
-            set_week(week_chart[curr_week][0], true);
+            set_week(week_chart[curr_week].prev, true);
         } else if (direction > 0) {
-            set_week(week_chart[curr_week][1], true);
+            set_week(week_chart[curr_week].next, true);
         } else {
             play_song(true);
         }
