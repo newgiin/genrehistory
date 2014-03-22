@@ -3,13 +3,13 @@ import json
 import logging
 import models
 import lastfm
-from lastfm import ExceedRateLimitError, SuspendedAPIKeyError, \
-                    ServiceOfflineError, TemporaryError
 import time
 from tagworker import TagWorker
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
 from google.appengine.ext import ndb
+from google.appengine.api.urlfetch_errors import DeadlineExceededError
+
 
 lfm_api = lastfm.LastFm()
 
@@ -31,20 +31,25 @@ class HistoryService(webapp2.RequestHandler):
 
         try:
             gwi_json = lfm_api.user_getweekintervals(user)
-        except ExceedRateLimitError:
+        except lastfm.ExceedRateLimitError:
             gwi_json['error'] = 29
             gwi_json['message'] = 'Rate limit exceeded'
-        except SuspendedAPIKeyError:
+        except lastfm.SuspendedAPIKeyError:
             gwi_json['error'] = 26
             gwi_json['message'] = 'Suspended API key'
-        except ServiceOfflineError:
+        except lastfm.ServiceOfflineError:
             gwi_json['error'] = 11
             gwi_json['message'] = 'Service temporarily offline. ' + \
                                         'Please try again later.'
-        except TemporaryError:
+        except lastfm.TemporaryError:
             gwi_json['error'] = 16
             gwi_json['message'] = 'There was a temporary error processing your ' + \
                                         'request. Please try again.'
+        except DeadlineExceededError:
+            self.response.write(json.dumps(
+                {'error': 'Could not reach Last.fm. Please try again later.'}))
+            return
+
 
         if 'error' in gwi_json:
             error_msg = ''

@@ -19,6 +19,9 @@ var SCROBBLE_POLL_INTERVAL = 5;
 var scrobble_poll_id = null;
 
 $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
+$.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' +
+        '&user=' + encodeURIComponent(user) + '&api_key=' + LFM_API_KEY +
+        '&format=json').done(init_week_chart).fail(disp_error);
 
 // setup Youtube player
 var params = { allowScriptAccess: 'always' };
@@ -394,9 +397,6 @@ function get_song_to_play() {
 function onYouTubePlayerReady(playerId) {
     ytplayer = document.getElementById('ytplayer');
     ytplayer.addEventListener('onStateChange', 'onPlayerStateChange');
-    $.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' +
-            '&user=' + encodeURIComponent(user) + '&api_key=' + LFM_API_KEY +
-            '&format=json').done(init_week_chart).fail(disp_error);
 }
 
 function onPlayerStateChange(newState) {
