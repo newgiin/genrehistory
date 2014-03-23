@@ -109,7 +109,8 @@ function render(data, status) {
 
             var update_time = 'Never';
             if (data.last_updated) {
-                 update_time = timestampToDate(parseInt(data.last_updated));
+                update_time =  Highcharts.dateFormat('%b %e, %Y',
+                    parseInt(data.last_updated) * 1000);
             }
             status_text.innerHTML += '<br/>Last updated: ' + update_time;
 

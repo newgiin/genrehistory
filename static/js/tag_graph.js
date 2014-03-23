@@ -19,7 +19,7 @@ function render(data, status, jqXHR) {
 
             var update_time = 'Never';
             if (data.last_updated) {
-                 update_time = timestampToDate(parseInt(data.last_updated));
+                update_time = timestampToDate(parseInt(data.last_updated));
             }
             status_text.innerHTML += '<br/>Last updated: ' + update_time;
 
