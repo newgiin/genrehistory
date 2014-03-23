@@ -156,6 +156,7 @@ def _process_user(request, user):
                     memcache.add(artist_name, artist_tags, CACHE_PRD,
                         namespace=AT_CACHE_NS)
 
+                # build tag history data
                 if artist_tags:
                     tag = artist_tags[0]
                     if tag in tags:
@@ -166,6 +167,7 @@ def _process_user(request, user):
                         tags[tag] = artist_plays
                         top_artists[tag] = [artist_name]
 
+                # build tag graph data
                 for tag in artist_tags:
                     if tag in tag_graph:
                         tag_graph[tag]['plays'] += artist_plays
@@ -204,6 +206,7 @@ def _process_user(request, user):
 
         bu_key = ndb.Key(models.BusyUser, user)
         bu_entity = bu_key.get()
+
         if bu_entity is None:
             logging.error("Processed %s who wasn't registered as BusyUser.",
                 user)
@@ -233,22 +236,23 @@ def _process_user(request, user):
         # we can pickup where we leftoff on retry
         #
         store_user_data(user, tag_history, tag_graph)
-        logging.debug('Successfully stored tag data for ' + user)
 
 
 @ndb.transactional(xg=True)
 def store_user_data(user, tag_history, tag_graph):
-    hist_entity = models.TagHistory(id=user,
-        last_updated=int(tag_history['weeks'][-1]['to']),
-        tag_history=tag_history)
+    if tag_history['weeks']:
+        hist_entity = models.TagHistory(id=user,
+            last_updated=int(tag_history['weeks'][-1]['to']),
+            tag_history=tag_history)
 
-    hist_entity.put_async()
+        hist_entity.put_async()
 
-    graph_entity = models.TagGraph(id=user,
-        last_updated=int(tag_history['weeks'][-1]['to']),
-        tag_graph=tag_graph)
+        graph_entity = models.TagGraph(id=user,
+            last_updated=int(tag_history['weeks'][-1]['to']),
+            tag_graph=tag_graph)
 
-    graph_entity.put_async()
+        graph_entity.put_async()
+        logging.debug('Successfully stored tag data for ' + user)
 
 class TagWorker(webapp2.RequestHandler):
     @ndb.toplevel

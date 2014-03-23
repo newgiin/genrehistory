@@ -1,0 +1,4 @@
+cron:
+- description: Sanity test/Update my data
+  url: /history?user=andruun
+  schedule: every day 12:00

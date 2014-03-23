@@ -92,6 +92,10 @@ class HistoryService(webapp2.RequestHandler):
             if hist_entity is not None:
                 resp_data['last_updated'] = hist_entity.last_updated
 
+            user_data = lfm_api.user_getinfo(user)['user']
+            if int(weeks[-1]['to']) <= int(user_data['registered']['unixtime']):
+                resp_data = {'error': 'Your account is too new for Last.fm to have data.'}
+
             self.response.write(json.dumps(resp_data))
 
 
