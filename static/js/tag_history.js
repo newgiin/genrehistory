@@ -170,12 +170,13 @@ function render_chart(data) {
         var week_tags = $.map(week.tags, function(tag_obj) {
             return tag_obj.tag});
         for (var tag in tags) {
-            // only add zero-play if last week's plays was not 0
+            // only add zero-play if last week's plays was not 0 for faster
+            // point rendering
             if (week_tags.indexOf(tag) < 0 &&
                     tags[tag][tags[tag].length-1].y != 0) {
                 tags[tag].push(
                     {x: parseInt(week.from) * 1000, y: 0, artists: ''}
-                )
+                );
             }
         }
     }
@@ -355,9 +356,7 @@ function play_song(autoplay) {
                     }
                 } else {
                     // video not found, get next song to play from this week
-                    scrobbler.clear_song();
-                    ytplayer.loadVideoById(DEFAULT_VIDEO_ID);
-                    setTimeout(function() {play_song(true);}, 4000);
+                    play_song(true);
                 }
             });
     } else {

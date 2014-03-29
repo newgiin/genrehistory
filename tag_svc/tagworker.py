@@ -25,7 +25,7 @@ DEADLINE_EXCEED_GRACE_PERIOD = 30
 
 def _get_weeklyartists(user, start, end):
     weekly_artists = lfm_api.user_getweeklyartists(user, start, end)
-    artists = {}
+    artists = []
 
     try:
         if 'error' in weekly_artists:
@@ -140,8 +140,18 @@ def _process_user(request, user):
             tags = {}
             top_artists = {}
 
-            artists = _Quota.run_with_quota(start, quota_state,
-                _get_weeklyartists, user, week['from'], week['to'])
+            # TODO temp fix for last.fm API intermittenly returning
+            # bad result
+            go = True
+            while go:
+                try:
+                    artists = _Quota.run_with_quota(start, quota_state,
+                        _get_weeklyartists, user, week['from'], week['to'])
+                    go = False
+                except KeyError:
+                    logging.debug('caught KeyError for weeklyartists')
+                    time.sleep(3)
+                    go = True
 
             for artist in artists:
                 artist_name = artist['name']
@@ -150,9 +160,20 @@ def _process_user(request, user):
                     namespace=AT_CACHE_NS)
 
                 if artist_tags is None:
-                    artist_tags = _Quota.run_with_quota(start, quota_state,
-                        _get_artisttags, artist_name, artist['mbid'],
-                            TAGS_PER_ARTIST)
+                    # TODO temp fix for last.fm API intermittenly returning
+                    # bad result
+                    go = True
+                    while go:
+                        try:
+                            artist_tags = _Quota.run_with_quota(start, quota_state,
+                                _get_artisttags, artist_name, artist['mbid'],
+                                    TAGS_PER_ARTIST)
+                            go = False
+                        except KeyError:
+                            logging.debug('caught KeyError for: ' + artist_name)
+                            time.sleep(3)
+                            go = True
+
                     memcache.add(artist_name, artist_tags, CACHE_PRD,
                         namespace=AT_CACHE_NS)
 
