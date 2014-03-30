@@ -140,18 +140,8 @@ def _process_user(request, user):
             tags = {}
             top_artists = {}
 
-            # TODO temp fix for last.fm API intermittenly returning
-            # bad result
-            go = True
-            while go:
-                try:
-                    artists = _Quota.run_with_quota(start, quota_state,
-                        _get_weeklyartists, user, week['from'], week['to'])
-                    go = False
-                except KeyError:
-                    logging.debug('caught KeyError for weeklyartists')
-                    time.sleep(3)
-                    go = True
+            artists = _Quota.run_with_quota(start, quota_state,
+                _get_weeklyartists, user, week['from'], week['to'])
 
             for artist in artists:
                 artist_name = artist['name']
@@ -160,19 +150,9 @@ def _process_user(request, user):
                     namespace=AT_CACHE_NS)
 
                 if artist_tags is None:
-                    # TODO temp fix for last.fm API intermittenly returning
-                    # bad result
-                    go = True
-                    while go:
-                        try:
-                            artist_tags = _Quota.run_with_quota(start, quota_state,
-                                _get_artisttags, artist_name, artist['mbid'],
-                                    TAGS_PER_ARTIST)
-                            go = False
-                        except KeyError:
-                            logging.debug('caught KeyError for: ' + artist_name)
-                            time.sleep(3)
-                            go = True
+                    artist_tags = _Quota.run_with_quota(start, quota_state,
+                        _get_artisttags, artist_name, artist['mbid'],
+                        TAGS_PER_ARTIST)
 
                     memcache.add(artist_name, artist_tags, CACHE_PRD,
                         namespace=AT_CACHE_NS)

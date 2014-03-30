@@ -65,6 +65,7 @@ function render(data, status, jqXHR) {
         }
 
         $('#viewport').css('display', 'block');
+        $('#status').css('visibility', 'hidden');
     }
 }
 

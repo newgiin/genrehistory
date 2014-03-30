@@ -6,7 +6,6 @@ import logging
 import hashlib
 import models
 from google.appengine.api import urlfetch
-import random
 
 class LastFm:
     API_KEY = '24836bd9d7043e3c0bc65aa801ba8821'
@@ -57,8 +56,6 @@ class LastFm:
             'to': end,
             'format': 'json'
         }
-        # TODO temp fix
-        params['nocache'] = random.random()
 
         return self.xhr(params)
 
@@ -71,8 +68,6 @@ class LastFm:
         }
         if mbid:
             params['mbid'] = mbid
-        # TODO temp fix
-        params['nocache'] = random.random()
 
         return self.xhr(params)
 
@@ -115,9 +110,7 @@ class LastFm:
     def xhr(self, params, method=urlfetch.GET):
         url = self.API_ROOT + '?' + urllib.urlencode(params)
         headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cache-Control':'no-cache,max-age=0',
-            'Pragma':'no-cache'
+            'Content-Type': 'application/x-www-form-urlencoded'
         }
 
         #logging.debug(url)
