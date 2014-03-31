@@ -3,6 +3,7 @@ import json
 import logging
 import lastfm
 import models
+from config import FRAGMENT_SIZE
 from google.appengine.ext import ndb
 from google.appengine.api import memcache, taskqueue
 from google.appengine.runtime import DeadlineExceededError
@@ -106,163 +107,232 @@ class _QuotaState:
         self.num_reqs = num_reqs
         self.next_interval = next_interval
 
-def _process_user(request, user):
-    start = time.time()
+def _process_user(request, user, start, end):
+    p_start = time.time()
 
     quota_state = _QuotaState(0, time.time() + _Quota.period)
 
-    hist_entity = models.TagHistory.get_by_id(user)
-    graph_entity = models.TagGraph.get_by_id(user)
-
     tag_history = {'user': user, 'weeks': []}
     tag_graph = {} # { tag_name: { plays: num_plays, adj: set_of_related } }
-    date_floor = None
 
-    if hist_entity is None:
-        user_data = lfm_api.user_getinfo(user)['user']
-        date_floor = int(user_data['registered']['unixtime'])
-    else:
-        date_floor = hist_entity.last_updated
-        tag_graph = graph_entity.tag_graph
-        tag_history = hist_entity.tag_history
-
-    logging.info('Started processing %s from week %d', user, date_floor)
+    logging.info('Started processing %s for %d-%d', user, start, end)
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
-    try:
-        for week in weeks:
-            # From oldest to newest
-            if int(week['to']) <= date_floor:
-                continue
+    frag_size = 0
 
-            week_elem = {'from': week['from'],
-                'to': week['to'], 'tags':[]}
-            tags = {}
-            top_artists = {}
+    for week in weeks:
+        week_stamp = int(week['to'])
+        # From oldest to newest
+        if week_stamp < start:
+            continue
+        if week_stamp > end:
+            break
 
-            artists = _Quota.run_with_quota(start, quota_state,
-                _get_weeklyartists, user, week['from'], week['to'])
+        frag_size += 1
 
-            for artist in artists:
-                artist_name = artist['name']
-                artist_plays = int(artist['playcount'])
-                artist_tags = memcache.get(artist_name,
+        week_elem = {'from': week['from'],
+            'to': week['to'], 'tags':[]}
+        tags = {}
+        top_artists = {}
+
+        artists = _Quota.run_with_quota(p_start, quota_state,
+            _get_weeklyartists, user, week['from'], week['to'])
+
+        for artist in artists:
+            artist_name = artist['name']
+            artist_plays = int(artist['playcount'])
+            artist_tags = memcache.get(artist_name,
+                namespace=AT_CACHE_NS)
+
+            if artist_tags is None:
+                artist_tags = _Quota.run_with_quota(p_start, quota_state,
+                    _get_artisttags, artist_name, artist['mbid'],
+                    TAGS_PER_ARTIST)
+
+                memcache.add(artist_name, artist_tags, CACHE_PRD,
                     namespace=AT_CACHE_NS)
 
-                if artist_tags is None:
-                    artist_tags = _Quota.run_with_quota(start, quota_state,
-                        _get_artisttags, artist_name, artist['mbid'],
-                        TAGS_PER_ARTIST)
+            # build tag history data
+            if artist_tags:
+                tag = artist_tags[0]
+                if tag in tags:
+                    tags[tag] += artist_plays
+                    if len(top_artists[tag]) < NUM_TOP_ARTISTS:
+                        top_artists[tag].append(artist_name)
+                else:
+                    tags[tag] = artist_plays
+                    top_artists[tag] = [artist_name]
 
-                    memcache.add(artist_name, artist_tags, CACHE_PRD,
-                        namespace=AT_CACHE_NS)
+            # build tag graph data
+            for tag in artist_tags:
+                if tag in tag_graph:
+                    tag_graph[tag]['plays'] += artist_plays
+                else:
+                    tag_graph[tag] = {'plays': artist_plays,
+                                            'adj': set()}
 
-                # build tag history data
-                if artist_tags:
-                    tag = artist_tags[0]
-                    if tag in tags:
-                        tags[tag] += artist_plays
-                        if len(top_artists[tag]) < NUM_TOP_ARTISTS:
-                            top_artists[tag].append(artist_name)
+                for syn_tag in artist_tags:
+                    if syn_tag != tag:
+                        tag_graph[tag]['adj'].add(syn_tag)
+
+        week_elem['tags'] = [{'tag': k, 'plays': v,
+                                'artists': top_artists[k]}
+                                for k, v in tags.iteritems()
+                                if v >= PLAY_THRESHOLD]
+
+        week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
+        week_elem['tags'] = week_elem['tags'][:MAX_TPW]
+
+        tag_history['weeks'].append(week_elem)
+
+        if (time.time() - p_start >
+                MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
+            raise DeadlineExceededError
+
+    # filter out tags from graph with plays below threshold
+    # TODO use different PLAY_THRESHOLD now that tagworker uses fragments?
+    lil_tags = set([tag for tag in tag_graph if
+                    tag_graph[tag]['plays'] < PLAY_THRESHOLD])
+    tag_graph = {tag:v for tag, v in tag_graph.iteritems()
+                    if tag_graph[tag]['plays'] >= PLAY_THRESHOLD}
+
+    for tag in tag_graph:
+        tag_graph[tag]['adj'] = {tag for tag in
+                                    tag_graph[tag]['adj'] if
+                                    tag not in lil_tags}
+
+    user_entity = models.User.get_by_id(user)
+    if user_entity is None:
+        logging.error("Processed %s who wasn't registered as BusyUser.",
+            user)
+        return
+
+    if frag_size == FRAGMENT_SIZE:
+        store_user_data(user, tag_history, tag_graph,
+            user_entity.key, start, end, frag_size)
+    else:
+        # merge histories
+        hist_frags = models.TagHistory.query(
+            models.TagHistory.size != FRAGMENT_SIZE,
+            ancestor=user_entity.key).fetch()
+
+        merged = False
+        for hist_frag in hist_frags:
+            if abs(start - hist_frag.end) < 1000:
+                merged = True
+
+                hist_frag.tag_history['weeks'] += tag_history['weeks']
+                hist_frag.size += frag_size
+                hist_frag.end = end
+                hist_frag.put()
+
+        # merge graphs
+        graph_frags = models.TagGraph.query(
+            models.TagGraph.size != FRAGMENT_SIZE,
+            ancestor=user_entity.key).fetch()
+        for graph_frag in graph_frags:
+            if abs(start - graph_frag.end) < 1000:
+                old_graph = graph_frag.tag_graph
+
+                for tag in tag_graph:
+                    if tag in old_graph:
+                        old_graph[tag]['plays'] += tag_graph[tag]['plays']
+                        old_graph[tag]['adj'] = old_graph[tag]['adj'].union(
+                            tag_graph[tag]['adj'])
                     else:
-                        tags[tag] = artist_plays
-                        top_artists[tag] = [artist_name]
+                        old_graph[tag] = tag_graph[tag]
+                graph_frag.size += frag_size
+                graph_frag.end = end
+                graph_frag.put()
+        if not merged:
+            store_user_data(user, tag_history, tag_graph,
+                user_entity.key, start, end, frag_size)
 
-                # build tag graph data
-                for tag in artist_tags:
-                    if tag in tag_graph:
-                        tag_graph[tag]['plays'] += artist_plays
-                    else:
-                        tag_graph[tag] = {'plays': artist_plays,
-                                                'adj': set()}
-
-                    for syn_tag in artist_tags:
-                        if syn_tag != tag:
-                            tag_graph[tag]['adj'].add(syn_tag)
-
-            week_elem['tags'] = [{'tag': k, 'plays': v,
-                                    'artists': top_artists[k]}
-                                    for k, v in tags.iteritems()
-                                    if v >= PLAY_THRESHOLD]
-
-            week_elem['tags'].sort(key=lambda e: e['plays'], reverse=True)
-            week_elem['tags'] = week_elem['tags'][:MAX_TPW]
-
-            tag_history['weeks'].append(week_elem)
-
-            if (time.time() - start >
-                    MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
-                raise DeadlineExceededError
-
-        # filter out tags from graph with plays below theshold
-        lil_tags = set([tag for tag in tag_graph if
-                        tag_graph[tag]['plays'] < PLAY_THRESHOLD])
-        tag_graph = {tag:v for tag, v in tag_graph.iteritems()
-                        if tag_graph[tag]['plays'] >= PLAY_THRESHOLD}
-
-        for tag in tag_graph:
-            tag_graph[tag]['adj'] = {tag for tag in
-                                        tag_graph[tag]['adj'] if
-                                        tag not in lil_tags}
-
-        bu_key = ndb.Key(models.BusyUser, user)
-        bu_entity = bu_key.get()
-
-        if bu_entity is None:
-            logging.error("Processed %s who wasn't registered as BusyUser.",
-                user)
-        else:
-            if bu_entity.shout:
-                msg = ('Your tag visualizations are ready at %s/history?user=%s'
-                        ' and %s/tag_graph?tp=20&user=%s'
-                        % (request.host_url, urllib.quote(user),
-                            request.host_url, urllib.quote(user)))
-
-                try:
-                    shout_resp = lfm_api.user_shout(user, msg)
-                    if 'status' in shout_resp and shout_resp['status'] == 'ok':
-                        logging.info('Shouted to ' + user)
-                    else:
-                        logging.error('Error shouting to %s: %s',
-                            user, shout_resp)
-                except lastfm.InvalidSessionError:
-                    logging.error('Could not shout. Last.fm session invalid.')
-
-            bu_key.delete_async()
-
-        logging.info('%s took: %f seconds.', user, time.time() - start)
-    finally:
-        #
-        # Always store what we have, so in case of error
-        # we can pickup where we leftoff on retry
-        #
-        store_user_data(user, tag_history, tag_graph)
+        finish_process(request, user, user_entity, int(weeks[-1]['to']))
+        logging.info('%s took: %f seconds.', user, time.time() - p_start)
 
 
-@ndb.transactional(xg=True)
-def store_user_data(user, tag_history, tag_graph):
+    #     bu_key = ndb.Key(models.BusyUser, user)
+    #     user_entity = bu_key.get()
+
+    #     if user_entity is None:
+    #         logging.error("Processed %s who wasn't registered as BusyUser.",
+    #             user)
+    #     else:
+    #         if user_entity.shout:
+    #             msg = ('Your tag visualizations are ready at %s/history?user=%s'
+    #                     ' and %s/tag_graph?tp=20&user=%s'
+    #                     % (request.host_url, urllib.quote(user),
+    #                         request.host_url, urllib.quote(user)))
+
+    #             try:
+    #                 shout_resp = lfm_api.user_shout(user, msg)
+    #                 if 'status' in shout_resp and shout_resp['status'] == 'ok':
+    #                     logging.info('Shouted to ' + user)
+    #                 else:
+    #                     logging.error('Error shouting to %s: %s',
+    #                         user, shout_resp)
+    #             except lastfm.InvalidSessionError:
+    #                 logging.error('Could not shout. Last.fm session invalid.')
+
+    #         bu_key.delete_async()
+
+    #     logging.info('%s took: %f seconds.', user, time.time() - p_start)
+    # finally:
+    #     #
+    #     # Always store what we have, so in case of error
+    #     # we can pickup where we leftoff on retry
+    #     #
+    #     store_user_data(user, tag_history, tag_graph)
+
+
+@ndb.transactional
+def finish_process(request, user, user_entity, last_updated):
+    if user_entity.shout:
+        msg = ('Your tag visualizations are ready at %s/history?user=%s'
+                ' and %s/tag_graph?tp=20&user=%s'
+                % (request.host_url, urllib.quote(user),
+                    request.host_url, urllib.quote(user)))
+
+        try:
+            shout_resp = lfm_api.user_shout(user, msg)
+            if 'status' in shout_resp and shout_resp['status'] == 'ok':
+                logging.info('Shouted to ' + user)
+            else:
+                logging.error('Error shouting to %s: %s',
+                    user, shout_resp)
+        except lastfm.InvalidSessionError:
+            logging.error('Could not shout. Last.fm session invalid.')
+
+        user_entity.shout = False
+
+    user_entity.worker_count -= 1
+    if user_entity.worker_count == 0:
+        user_entity.last_updated = last_updated
+
+    user_entity.put()
+
+
+@ndb.transactional
+def store_user_data(user, tag_history, tag_graph, parent, start, end, frag_size):
     if tag_history['weeks']:
-        hist_entity = models.TagHistory(id=user,
-            last_updated=int(tag_history['weeks'][-1]['to']),
-            tag_history=tag_history)
+        models.TagHistory(tag_history=tag_history, start=start, end=end,
+            size=frag_size, parent=parent).put_async()
+        models.TagGraph(tag_graph=tag_graph, start=start, end=end,
+            size=frag_size, parent=parent).put_async()
 
-        hist_entity.put_async()
-
-        graph_entity = models.TagGraph(id=user,
-            last_updated=int(tag_history['weeks'][-1]['to']),
-            tag_graph=tag_graph)
-
-        graph_entity.put_async()
         logging.debug('Successfully stored tag data for ' + user)
 
 class TagWorker(webapp2.RequestHandler):
     @ndb.toplevel
     def post(self):
         user = self.request.get('user')
+        start = int(self.request.get('start'))
+        end = int(self.request.get('end'))
         user = user.lower()
 
         try:
-            _process_user(self.request, user)
+            _process_user(self.request, user, start, end)
         except DeadlineExceededError:
             logging.debug(user + ' request deadline exceeded. Restarting...')
             self.error(500)

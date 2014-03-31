@@ -13,11 +13,11 @@ class ShoutSetter(webapp2.RequestHandler):
         else:
             user = user.lower()
 
-        busy_user = models.BusyUser.get_by_id(user)
-        if busy_user is not None:
-            if not busy_user.shout:
-                busy_user.shout = True
-                busy_user.put()
+        usr_entity = models.User.get_by_id(user)
+        if usr_entity is not None:
+            if not usr_entity.shout:
+                usr_entity.shout = True
+                usr_entity.put()
             self.response.write(json.dumps({'shout': '1'}))
         else:
             self.response.write(json.dumps({'error': 'Not currently' +

@@ -5,6 +5,7 @@ import models
 import lastfm
 import time
 import webapp2
+from config import FRAGMENT_SIZE
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
 from google.appengine.ext import ndb
@@ -82,20 +83,45 @@ class TagService(webapp2.RequestHandler):
 
         weeks = gwi_json['weeklychartlist']['chart']
 
-        tag_data = self.build_response(user, int(weeks[-1]['to']), self.request)
+        user_entity = models.User.get_by_id(user)
 
-        if tag_data is not None:
-            self.response.write(json.dumps(tag_data))
+        if (user_entity is not None and
+                user_entity.last_updated >= int(weeks[-1]['to'])):
+            self.response.write(json.dumps(
+                self.build_response(user, self.request)))
         else:
-            if models.BusyUser.get_by_id(user) is None:
-                try:
-                    taskqueue.add(url='/worker',
-                        name=user + str(int(time.time())),
-                        params={'user': user})
-                except taskqueue.InvalidTaskNameError:
-                    taskqueue.add(url='/worker', params={'user': user})
+            user_data = lfm_api.user_getinfo(user)['user']
+            register_date = int(user_data['registered']['unixtime'])
 
-                models.BusyUser(id=user, shout=False).put()
+            if user_entity is None or user_entity.worker_count == 0:
+                # distribute processing among workers
+                date_floor = register_date
+                user_entity = models.User.get_by_id(user)
+                frag_size = 0
+
+                if user_entity is not None:
+                    # get end of incomplete fragment as we must finish it
+                    inc_frag = models.TagHistory.query(
+                                    models.TagHistory.size != FRAGMENT_SIZE,
+                                    ancestor=user_entity.key).get()
+                    if inc_frag is not None:
+                        frag_size = inc_frag.size
+                    date_floor = user_entity.last_updated
+
+                for i, week in enumerate(weeks):
+                    if int(week['to']) <= date_floor:
+                        continue
+
+                    frag_size += 1
+                    if frag_size == FRAGMENT_SIZE:
+                        add_worker(user, int(weeks[i + 1 - frag_size]['to']),
+                            int(week['to']))
+                        frag_size = 0
+
+                if frag_size > 0:
+                    # submit job for last fragment
+                    add_worker(user, int(weeks[len(weeks)-frag_size]),
+                        int(weeks[-1]['to']))
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=30'
@@ -106,8 +132,33 @@ class TagService(webapp2.RequestHandler):
             if last_updated is not None:
                 resp_data['last_updated'] = last_updated
 
-            user_data = lfm_api.user_getinfo(user)['user']
-            if int(weeks[-1]['to']) <= int(user_data['registered']['unixtime']):
+            if int(weeks[-1]['to']) <= register_date:
                 resp_data = {'error': 'Your account is too new for Last.fm to have data.'}
 
             self.response.write(json.dumps(resp_data))
+
+@ndb.transactional(retries=5)
+def add_worker(user, start, end):
+    user_entity = models.User.get_by_id(user)
+    if user_entity is not None:
+        user_entity.worker_count += 1
+    else:
+        user_entity = models.User(id=user, last_updated=0, shout=False,
+            worker_count=1)
+    user_entity.put()
+
+    try:
+        taskqueue.add(url='/worker',
+            name='%s_%d-%d' % (user, int(time.time()), start),
+            params={'user': user,
+                'start': start,
+                'end': end
+            }
+        )
+    except taskqueue.InvalidTaskNameError:
+        taskqueue.add(url='/worker',
+            params={'user': user,
+                'start': start,
+                'end': end
+            }
+        )

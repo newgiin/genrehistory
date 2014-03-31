@@ -11,7 +11,7 @@ from google.appengine.ext import ndb
 from google.appengine.api.urlfetch_errors import DeadlineExceededError
 
 class HistoryService(TagService):
-    def build_response(self, user, curr_week, request):
+    def build_response(self, user, request):
         try:
             hist_entity = models.TagHistory.get_by_id(user)
         except apiproxy_errors.OverQuotaError as e:
@@ -19,8 +19,7 @@ class HistoryService(TagService):
             return {'error': 'AppEngine error. Go tell ' + \
                     'atnguyen4@gmail.com to buy more Google resources.'}
 
-        if (hist_entity is not None
-                and hist_entity.last_updated >= curr_week):
+        if hist_entity is not None:
             return hist_entity.tag_history
         return None
 

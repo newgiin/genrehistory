@@ -23,8 +23,7 @@ class TagGraphService(TagService):
             return {'error': 'AppEngine error. Go tell ' + \
                     'atnguyen4@gmail.com to buy more Google resources.'}
 
-        if (graph_entity is not None
-                and graph_entity.last_updated >= curr_week):
+        if graph_entity is not None:
             tag_graph = graph_entity.tag_graph
 
             tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])}
