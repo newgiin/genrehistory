@@ -12,22 +12,19 @@ from google.appengine.api.urlfetch_errors import DeadlineExceededError
 
 class HistoryService(TagService):
     def build_response(self, user, request):
+        resp = {'user': user, 'weeks':[]}
         try:
-            hist_entity = models.TagHistory.get_by_id(user)
+            user_entity = models.User.get_by_id(user)
+            qry = models.TagHistory.query(ancestor=user_entity.key).order(
+                models.TagHistory.start)
+            for hist_frag in qry.fetch():
+                resp['weeks'] += hist_frag.tag_history['weeks']
         except apiproxy_errors.OverQuotaError as e:
             logging.error(e)
             return {'error': 'AppEngine error. Go tell ' + \
                     'atnguyen4@gmail.com to buy more Google resources.'}
 
-        if hist_entity is not None:
-            return hist_entity.tag_history
-        return None
-
-    def get_last_updated(self, user):
-        hist_entity = models.TagHistory.get_by_id(user)
-        if hist_entity is not None:
-            return hist_entity.last_updated
-        return None
+        return resp
 
 
 app = webapp2.WSGIApplication([

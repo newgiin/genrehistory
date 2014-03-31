@@ -20,9 +20,8 @@ class TagService(webapp2.RequestHandler):
 
     """
     Meant to be overriden by subclass.
-    Returns JSON response in dict format if data in datastore is
-    ready and up-to-date, otherwise returns None if a tag worker
-    process should be started to update the data.
+    Returns JSON response in dict format with the current data in the datastore
+    associated with the user.
     """
     def build_response(self, user, curr_week):
         raise NotImplementedError
@@ -32,7 +31,10 @@ class TagService(webapp2.RequestHandler):
     for this user was last updated.
     """
     def get_last_updated(self, user):
-        raise NotImplementedError
+        user_entity = models.User.get_by_id(user)
+        if user_entity is not None and user_entity.last_updated > 0:
+            return user_entity.last_updated
+        return None
 
     def get(self):
         self.response.headers['Content-Type'] = 'application/json'
@@ -120,7 +122,7 @@ class TagService(webapp2.RequestHandler):
 
                 if frag_size > 0:
                     # submit job for last fragment
-                    add_worker(user, int(weeks[len(weeks)-frag_size]),
+                    add_worker(user, int(weeks[len(weeks)-frag_size]['to']),
                         int(weeks[-1]['to']))
 
             self.response.headers['Cache-Control'] = \
@@ -139,6 +141,7 @@ class TagService(webapp2.RequestHandler):
 
 @ndb.transactional(retries=5)
 def add_worker(user, start, end):
+    logging.debug('adding worker for %d-%d', start, end)
     user_entity = models.User.get_by_id(user)
     if user_entity is not None:
         user_entity.worker_count += 1
@@ -149,7 +152,7 @@ def add_worker(user, start, end):
 
     try:
         taskqueue.add(url='/worker',
-            name='%s_%d-%d' % (user, int(time.time()), start),
+            name='%s_%d_%d' % (user, int(time.time()), start),
             params={'user': user,
                 'start': start,
                 'end': end

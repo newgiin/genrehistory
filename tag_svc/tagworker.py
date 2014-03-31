@@ -244,71 +244,37 @@ def _process_user(request, user, start, end):
                 graph_frag.size += frag_size
                 graph_frag.end = end
                 graph_frag.put()
+
         if not merged:
             store_user_data(user, tag_history, tag_graph,
                 user_entity.key, start, end, frag_size)
 
-        finish_process(request, user, user_entity, int(weeks[-1]['to']))
-        logging.info('%s took: %f seconds.', user, time.time() - p_start)
-
-
-    #     bu_key = ndb.Key(models.BusyUser, user)
-    #     user_entity = bu_key.get()
-
-    #     if user_entity is None:
-    #         logging.error("Processed %s who wasn't registered as BusyUser.",
-    #             user)
-    #     else:
-    #         if user_entity.shout:
-    #             msg = ('Your tag visualizations are ready at %s/history?user=%s'
-    #                     ' and %s/tag_graph?tp=20&user=%s'
-    #                     % (request.host_url, urllib.quote(user),
-    #                         request.host_url, urllib.quote(user)))
-
-    #             try:
-    #                 shout_resp = lfm_api.user_shout(user, msg)
-    #                 if 'status' in shout_resp and shout_resp['status'] == 'ok':
-    #                     logging.info('Shouted to ' + user)
-    #                 else:
-    #                     logging.error('Error shouting to %s: %s',
-    #                         user, shout_resp)
-    #             except lastfm.InvalidSessionError:
-    #                 logging.error('Could not shout. Last.fm session invalid.')
-
-    #         bu_key.delete_async()
-
-    #     logging.info('%s took: %f seconds.', user, time.time() - p_start)
-    # finally:
-    #     #
-    #     # Always store what we have, so in case of error
-    #     # we can pickup where we leftoff on retry
-    #     #
-    #     store_user_data(user, tag_history, tag_graph)
+    finish_process(request, user, user_entity, int(weeks[-1]['to']))
+    logging.info('%s took: %f seconds.', user, time.time() - p_start)
 
 
 @ndb.transactional
 def finish_process(request, user, user_entity, last_updated):
-    if user_entity.shout:
-        msg = ('Your tag visualizations are ready at %s/history?user=%s'
-                ' and %s/tag_graph?tp=20&user=%s'
-                % (request.host_url, urllib.quote(user),
-                    request.host_url, urllib.quote(user)))
-
-        try:
-            shout_resp = lfm_api.user_shout(user, msg)
-            if 'status' in shout_resp and shout_resp['status'] == 'ok':
-                logging.info('Shouted to ' + user)
-            else:
-                logging.error('Error shouting to %s: %s',
-                    user, shout_resp)
-        except lastfm.InvalidSessionError:
-            logging.error('Could not shout. Last.fm session invalid.')
-
-        user_entity.shout = False
-
     user_entity.worker_count -= 1
     if user_entity.worker_count == 0:
         user_entity.last_updated = last_updated
+        if user_entity.shout:
+            msg = ('Your tag visualizations are ready at %s/history?user=%s'
+                    ' and %s/tag_graph?tp=20&user=%s'
+                    % (request.host_url, urllib.quote(user),
+                        request.host_url, urllib.quote(user)))
+
+            try:
+                shout_resp = lfm_api.user_shout(user, msg)
+                if 'status' in shout_resp and shout_resp['status'] == 'ok':
+                    logging.info('Shouted to ' + user)
+                else:
+                    logging.error('Error shouting to %s: %s',
+                        user, shout_resp)
+            except lastfm.InvalidSessionError:
+                logging.error('Could not shout. Last.fm session invalid.')
+
+            user_entity.shout = False
 
     user_entity.put()
 
@@ -316,9 +282,11 @@ def finish_process(request, user, user_entity, last_updated):
 @ndb.transactional
 def store_user_data(user, tag_history, tag_graph, parent, start, end, frag_size):
     if tag_history['weeks']:
-        models.TagHistory(tag_history=tag_history, start=start, end=end,
+        models.TagHistory(id=user+str(start), tag_history=tag_history,
+            start=start, end=end,
             size=frag_size, parent=parent).put_async()
-        models.TagGraph(tag_graph=tag_graph, start=start, end=end,
+        models.TagGraph(id=user+str(start), tag_graph=tag_graph,
+            start=start, end=end,
             size=frag_size, parent=parent).put_async()
 
         logging.debug('Successfully stored tag data for ' + user)
