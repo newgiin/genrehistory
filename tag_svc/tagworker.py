@@ -2,8 +2,8 @@ import webapp2
 import json
 import logging
 import lastfm
-import models
-from config import FRAGMENT_SIZE
+from models import TagHistory, TagGraph, User, BusyUser
+from config import FRAGMENT_SIZE, DS_VERSION
 from google.appengine.ext import ndb
 from google.appengine.api import memcache, taskqueue
 from google.appengine.runtime import DeadlineExceededError
@@ -121,13 +121,12 @@ def _process_user(request, user, start, end, append_to=None):
 
     frag_size = 0
 
-    for week in weeks:
-        week_stamp = int(week['to'])
-        # From oldest to newest
-        if week_stamp < start:
-            continue
-        if week_stamp > end:
-            break
+
+    start_i = bisect_left_f(weeks, start, f=lambda week: int(week['to']))
+    end_i = bisect_left_f(weeks, end, f=lambda week: int(week['to']))
+
+    for i in xrange(start_i, end_i+1):
+        week = weeks[i]
 
         frag_size += 1
 
@@ -202,7 +201,7 @@ def _process_user(request, user, start, end, append_to=None):
                                     tag_graph[tag]['adj'] if
                                     tag not in lil_tags}
 
-    user_entity = models.User.get_by_id(user)
+    user_entity = User.get_by_id(user, namespace=DS_VERSION)
     if user_entity is None:
         logging.error("Processed %s who wasn't registered as User.",
             user)
@@ -214,8 +213,8 @@ def _process_user(request, user, start, end, append_to=None):
     else:
         if append_to is not None:
             # merge histories
-            hist_frag = models.TagHistory.get_by_id(append_to,
-                            parent=user_entity.key)
+            hist_frag = TagHistory.get_by_id(append_to,
+                            parent=user_entity.key, namespace=DS_VERSION)
 
             hist_frag.tag_history['weeks'] += tag_history['weeks']
             hist_frag.size += frag_size
@@ -223,8 +222,8 @@ def _process_user(request, user, start, end, append_to=None):
             hist_frag.put()
 
             # merge graphs
-            graph_frag = models.TagGraph.get_by_id(append_to,
-                            parent=user_entity.key)
+            graph_frag = TagGraph.get_by_id(append_to,
+                            parent=user_entity.key, namespace=DS_VERSION)
 
             old_graph = graph_frag.tag_graph
 
@@ -248,7 +247,7 @@ def _process_user(request, user, start, end, append_to=None):
 
 @ndb.transactional(xg=True, retries=5)
 def finish_process(request, user, user_entity, last_updated):
-    bu_entity = models.BusyUser.get_by_id(user)
+    bu_entity = BusyUser.get_by_id(user, namespace=DS_VERSION)
 
     if bu_entity is None:
         logging.error("Processing %s who wasn't registered as BusyUser", user)
@@ -280,16 +279,36 @@ def finish_process(request, user, user_entity, last_updated):
         else:
             bu_entity.put()
 
+"""
+bisect_left that takes in a conversion function applied
+to each element being compared in the array sort that
+it can be compared to number 'x'.
+"""
+def bisect_left_f(a, x, lo=0, hi=None, f=lambda y: y):
+    lo = 0
+    hi = len(a)
+    if lo < 0:
+        raise ValueError('lo must be non-negative')
+    if hi is None:
+        hi = len(a)
+
+    while lo < hi:
+        mid = (lo+hi)//2
+        if f(a[mid]) < x:
+            lo = mid+1
+        else:
+            hi = mid
+    return lo
 
 @ndb.transactional
 def store_user_data(user, tag_history, tag_graph, parent, start, end, frag_size):
     if tag_history['weeks']:
-        models.TagHistory(id=user+str(start), tag_history=tag_history,
+        TagHistory(id=user+str(start), tag_history=tag_history,
             start=start, end=end,
-            size=frag_size, parent=parent).put_async()
-        models.TagGraph(id=user+str(start), tag_graph=tag_graph,
+            size=frag_size, parent=parent, namespace=DS_VERSION).put_async()
+        TagGraph(id=user+str(start), tag_graph=tag_graph,
             start=start, end=end,
-            size=frag_size, parent=parent).put_async()
+            size=frag_size, parent=parent, namespace=DS_VERSION).put_async()
 
         logging.debug('Successfully stored tag data for ' + user)
 

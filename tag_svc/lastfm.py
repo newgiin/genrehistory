@@ -43,7 +43,8 @@ class LastFm:
             'format': 'json'
         }
         # result = self.xhr(params)
-        # result['weeklychartlist']['chart'] = result['weeklychartlist']['chart'][450:]
+        # result['weeklychartlist']['chart'] = result['weeklychartlist']['chart'][:-20]
+        # return result
 
         return self.xhr(params)
 

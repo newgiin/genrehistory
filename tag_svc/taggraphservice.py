@@ -1,9 +1,10 @@
 import webapp2
 import json
 import logging
-import models
+from models import User, TagGraph
 import lastfm
 import time
+from config import DS_VERSION
 from tagservice import TagService
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
@@ -19,9 +20,10 @@ class TagGraphService(TagService):
         tag_graph = {}
 
         try:
-            user_entity = models.User.get_by_id(user)
-            qry = models.TagGraph.query(ancestor=user_entity.key).order(
-                models.TagGraph.start)
+            user_entity = User.get_by_id(user, namespace=DS_VERSION)
+            qry = TagGraph.query(ancestor=user_entity.key,
+                namespace=DS_VERSION).order(
+                TagGraph.start)
             for graph_frag in qry.fetch():
                 # merge graph to aggregate graph
                 sub_graph = graph_frag.tag_graph
@@ -55,35 +57,6 @@ class TagGraphService(TagService):
 
         return {'user': user, 'tags':tag_objs}
 
-
-
-        try:
-            graph_entity = models.TagGraph.get_by_id(user)
-        except apiproxy_errors.OverQuotaError as e:
-            logging.error(e)
-            return {'error': 'AppEngine error. Go tell ' + \
-                    'atnguyen4@gmail.com to buy more Google resources.'}
-
-        if graph_entity is not None:
-            tag_graph = graph_entity.tag_graph
-
-            tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])}
-                            for tag, v in tag_graph.iteritems()]
-            tag_objs.sort(key=lambda e: e['plays'], reverse=True)
-
-            if request.get('tp') and request.get('tp').isdigit():
-                top_percent = int(request.get('tp')) / 100.0
-                tag_objs = tag_objs[:int(len(tag_objs) * top_percent)]
-                top_tags = set([obj['tag'] for obj in tag_objs])
-
-                for obj in tag_objs:
-                    adj = [syn_tag for syn_tag in obj['adj']
-                            if syn_tag in top_tags]
-
-                    obj['adj'] = adj
-
-            return {'user': user, 'tags': tag_objs}
-        return None
 
 app = webapp2.WSGIApplication([
     ('/tag_graph_data', TagGraphService)

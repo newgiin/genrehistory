@@ -1,13 +1,13 @@
 import webapp2
 import json
 import logging
-import models
+from models import User, BusyUser, TagHistory
 import lastfm
 import time
 import webapp2
 import bisect
 import math
-from config import FRAGMENT_SIZE
+from config import FRAGMENT_SIZE, DS_VERSION
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
 from google.appengine.ext import ndb
@@ -33,7 +33,7 @@ class TagService(webapp2.RequestHandler):
     for this user was last updated.
     """
     def get_last_updated(self, user):
-        user_entity = models.User.get_by_id(user)
+        user_entity = User.get_by_id(user, namespace=DS_VERSION)
         if user_entity is not None and user_entity.last_updated > 0:
             return user_entity.last_updated
         return None
@@ -87,7 +87,7 @@ class TagService(webapp2.RequestHandler):
 
         weeks = [int(week['to']) for week in gwi_json['weeklychartlist']['chart']]
 
-        user_entity = models.User.get_by_id(user)
+        user_entity = User.get_by_id(user, namespace=DS_VERSION)
 
         if (user_entity is not None and
                 user_entity.last_updated >= weeks[-1]):
@@ -99,18 +99,18 @@ class TagService(webapp2.RequestHandler):
 
             # ensure User entity exists before start building data
             # so each data fragment can use this entity as the parent
-            if user_entity is None and register_date < weeks[-1]:
-                user_entity = models.User(id=user)
+            if user_entity is None:
+                user_entity = User(id=user, namespace=DS_VERSION)
                 user_entity.put()
 
-            bu_entity = models.BusyUser.get_by_id(user)
+            bu_entity = BusyUser.get_by_id(user, namespace=DS_VERSION)
             if bu_entity is None:
                 intervals = get_worker_intervals(user_entity,
                     register_date, weeks)
 
                 if intervals:
-                    bu_entity = models.BusyUser(id=user, shout=False,
-                        worker_count=len(intervals))
+                    bu_entity = BusyUser(id=user, shout=False,
+                        worker_count=len(intervals), namespace=DS_VERSION)
                     bu_entity.put()
 
                 for interval in intervals:
@@ -140,22 +140,21 @@ def get_worker_intervals(user_entity, register_date, weeks):
 
     if user_entity.last_updated is not None:
         # get end of incomplete fragment as we must finish it
-        last_frag = models.TagHistory.query(ancestor=user_entity.key).order(
-            -models.TagHistory.start).get()
+        last_frag = TagHistory.query(ancestor=user_entity.key
+            , namespace=DS_VERSION).order(
+            -TagHistory.start).get()
         date_floor = user_entity.last_updated
 
         frag_size = get_interval_size(weeks, last_frag.start, last_frag.end)
 
         if frag_size < FRAGMENT_SIZE:
             start_i = bisect.bisect_right(weeks, date_floor)
+            weeks_remaining = FRAGMENT_SIZE - frag_size
 
-            for i in xrange(start_i, len(weeks)):
-                frag_size += 1
-                if frag_size == FRAGMENT_SIZE:
-                    result.append((weeks[i + 1 - FRAGMENT_SIZE],
-                        weeks[i], last_frag.key.id()))
-                    date_floor = weeks[i]
-                    break
+            right_bound = weeks[min(len(weeks)-1, start_i+weeks_remaining-1)]
+
+            result.append((weeks[start_i], right_bound, last_frag.key.id()))
+            date_floor = right_bound
 
     # get the first week after 'date_floor'
     start_i = bisect.bisect_right(weeks, date_floor)
@@ -176,7 +175,7 @@ def get_interval_size(weeks, start, end):
 
 @ndb.transactional
 def add_worker(user, start, end, append_to=None):
-    logging.debug('adding worker for %d-%d', start, end)
+    logging.debug('adding worker for %d-%d-%s', start, end, append_to)
     params = {'user': user,  'start': start, 'end': end }
     if append_to is not None:
         params['append_to'] = append_to
