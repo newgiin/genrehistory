@@ -246,39 +246,39 @@ def _process_user(request, user, start, end, append_to=None):
     logging.info('%s took: %f seconds.', user, time.time() - p_start)
 
 
-@ndb.transactional(xg=True)
+@ndb.transactional(xg=True, retries=5)
 def finish_process(request, user, user_entity, last_updated):
     bu_entity = models.BusyUser.get_by_id(user)
 
     if bu_entity is None:
-        raise ValueError('Processing %s who wasn\'t registered as BusyUser' % user)
-
-    bu_entity.worker_count -= 1
-    if bu_entity.worker_count == 0:
-        user_entity.last_updated = last_updated
-        user_entity.put()
-
-        # do the shoutin'
-        if bu_entity.shout:
-            msg = ('Your tag visualizations are ready at %s/history?user=%s'
-                    ' and %s/tag_graph?tp=20&user=%s'
-                    % (request.host_url, urllib.quote(user),
-                        request.host_url, urllib.quote(user)))
-
-            try:
-                shout_resp = lfm_api.user_shout(user, msg)
-                if 'status' in shout_resp and shout_resp['status'] == 'ok':
-                    logging.info('Shouted to ' + user)
-                else:
-                    logging.error('Error shouting to %s: %s',
-                        user, shout_resp)
-            except lastfm.InvalidSessionError:
-                logging.error('Could not shout. Last.fm session invalid.')
-
-        bu_entity.key.delete()
-
+        logging.error("Processing %s who wasn't registered as BusyUser", user)
     else:
-        bu_entity.put()
+        bu_entity.worker_count -= 1
+        if bu_entity.worker_count == 0:
+            user_entity.last_updated = last_updated
+            user_entity.put()
+
+            # do the shoutin'
+            if bu_entity.shout:
+                msg = ('Your tag visualizations are ready at %s/history?user=%s'
+                        ' and %s/tag_graph?tp=20&user=%s'
+                        % (request.host_url, urllib.quote(user),
+                            request.host_url, urllib.quote(user)))
+
+                try:
+                    shout_resp = lfm_api.user_shout(user, msg)
+                    if 'status' in shout_resp and shout_resp['status'] == 'ok':
+                        logging.info('Shouted to ' + user)
+                    else:
+                        logging.error('Error shouting to %s: %s',
+                            user, shout_resp)
+                except lastfm.InvalidSessionError:
+                    logging.error('Could not shout. Last.fm session invalid.')
+
+            bu_entity.key.delete()
+
+        else:
+            bu_entity.put()
 
 
 @ndb.transactional

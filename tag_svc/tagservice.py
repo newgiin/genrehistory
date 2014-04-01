@@ -97,64 +97,24 @@ class TagService(webapp2.RequestHandler):
             user_data = lfm_api.user_getinfo(user)['user']
             register_date = int(user_data['registered']['unixtime'])
 
+            # ensure User entity exists before start building data
+            # so each data fragment can use this entity as the parent
+            if user_entity is None and register_date < weeks[-1]:
+                user_entity = models.User(id=user)
+                user_entity.put()
+
             bu_entity = models.BusyUser.get_by_id(user)
             if bu_entity is None:
-                # distribute processing among workers
-                date_floor = register_date
-                user_entity = models.User.get_by_id(user)
-                workers_added = 0
+                intervals = get_worker_intervals(user_entity,
+                    register_date, weeks)
 
-                if user_entity is not None:
-                    # get end of incomplete fragment as we must finish it
-                    inc_frag = models.TagHistory.query(
-                                    models.TagHistory.size < FRAGMENT_SIZE,
-                                    ancestor=user_entity.key).get()
-                    date_floor = user_entity.last_updated
-
-                    if inc_frag is not None:
-                        frag_size = inc_frag.size
-                        start_i = bisect.bisect_right(weeks, date_floor)
-
-                        for i in xrange(start_i, len(weeks)):
-                            frag_size += 1
-                            if frag_size == FRAGMENT_SIZE:
-                                add_worker(user, weeks[i + 1 - FRAGMENT_SIZE],
-                                    weeks[i], append_to=inc_frag.key.id())
-                                workers_added += 1
-                                date_floor = weeks[i]
-                                break
-                else:
-                    # ensure User entity exists before start building data
-                    # so each data fragment can use this entity as the parent
-                    user_entity = models.User(id=user, last_updated=0)
-                    user_entity.put()
-
-                # get the first week after 'date_floor'
-                start_i = bisect.bisect_right(weeks, date_floor)
-                # DEBUG
-                # worker_count = int(math.ceil((len(weeks)-start_i) /
-                #     float(FRAGMENT_SIZE)))
-
-                # DEBUG
-                #workers_added = 0
-
-                for i in xrange(start_i+FRAGMENT_SIZE,
-                        len(weeks), FRAGMENT_SIZE):
-                    week = weeks[i]
-                    add_worker(user, weeks[i + 1 - FRAGMENT_SIZE], week)
-                    workers_added += 1
-
-                remainder = (len(weeks)-start_i) % FRAGMENT_SIZE
-                if remainder > 0:
-                    # submit job for last fragment
-                    add_worker(user, weeks[len(weeks)-remainder],
-                        weeks[-1])
-                    workers_added += 1
-
-                if workers_added > 0:
+                if intervals:
                     bu_entity = models.BusyUser(id=user, shout=False,
-                        worker_count=workers_added)
+                        worker_count=len(intervals))
                     bu_entity.put()
+
+                for interval in intervals:
+                    add_worker(user, interval[0], interval[1], append_to=interval[2])
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=30'
@@ -170,6 +130,49 @@ class TagService(webapp2.RequestHandler):
 
             self.response.write(json.dumps(resp_data))
 
+"""
+Return list of week timestamp 3-tuples, where each 3-tuples specifies a job
+to distribute to a worker in the form of (start, end, append_to).
+"""
+def get_worker_intervals(user_entity, register_date, weeks):
+    date_floor = register_date
+    result = []
+
+    if user_entity.last_updated is not None:
+        # get end of incomplete fragment as we must finish it
+        last_frag = models.TagHistory.query(ancestor=user_entity.key).order(
+            -models.TagHistory.start).get()
+        date_floor = user_entity.last_updated
+
+        frag_size = get_interval_size(weeks, last_frag.start, last_frag.end)
+
+        if frag_size < FRAGMENT_SIZE:
+            start_i = bisect.bisect_right(weeks, date_floor)
+
+            for i in xrange(start_i, len(weeks)):
+                frag_size += 1
+                if frag_size == FRAGMENT_SIZE:
+                    result.append((weeks[i + 1 - FRAGMENT_SIZE],
+                        weeks[i], last_frag.key.id()))
+                    date_floor = weeks[i]
+                    break
+
+    # get the first week after 'date_floor'
+    start_i = bisect.bisect_right(weeks, date_floor)
+
+    for i in xrange(start_i+FRAGMENT_SIZE-1,
+            len(weeks), FRAGMENT_SIZE):
+        result.append((weeks[i-FRAGMENT_SIZE+1], weeks[i], None))
+
+    remainder = (len(weeks)-start_i) % FRAGMENT_SIZE
+    if remainder > 0:
+        # submit job for last fragment
+        result.append((weeks[len(weeks)-remainder], weeks[-1], None))
+
+    return result
+
+def get_interval_size(weeks, start, end):
+    return bisect.bisect_left(weeks, end) - bisect.bisect_left(weeks, start) + 1
 
 @ndb.transactional
 def add_worker(user, start, end, append_to=None):
