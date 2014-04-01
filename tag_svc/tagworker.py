@@ -11,6 +11,7 @@ from google.appengine.api.urlfetch_errors import DeadlineExceededError as \
     UrlFetchDeadlineExceededError
 import time
 import urllib
+import bisect
 from google.appengine.api import urlfetch
 
 lfm_api = lastfm.LastFm()
@@ -107,7 +108,7 @@ class _QuotaState:
         self.num_reqs = num_reqs
         self.next_interval = next_interval
 
-def _process_user(request, user, start, end):
+def _process_user(request, user, start, end, append_to=None):
     p_start = time.time()
 
     quota_state = _QuotaState(0, time.time() + _Quota.period)
@@ -203,7 +204,7 @@ def _process_user(request, user, start, end):
 
     user_entity = models.User.get_by_id(user)
     if user_entity is None:
-        logging.error("Processed %s who wasn't registered as BusyUser.",
+        logging.error("Processed %s who wasn't registered as User.",
             user)
         return
 
@@ -211,41 +212,33 @@ def _process_user(request, user, start, end):
         store_user_data(user, tag_history, tag_graph,
             user_entity.key, start, end, frag_size)
     else:
-        # merge histories
-        hist_frags = models.TagHistory.query(
-            models.TagHistory.size != FRAGMENT_SIZE,
-            ancestor=user_entity.key).fetch()
+        if append_to is not None:
+            # merge histories
+            hist_frag = models.TagHistory.get_by_id(append_to,
+                            parent=user_entity.key)
 
-        merged = False
-        for hist_frag in hist_frags:
-            if abs(start - hist_frag.end) < 1000:
-                merged = True
+            hist_frag.tag_history['weeks'] += tag_history['weeks']
+            hist_frag.size += frag_size
+            hist_frag.end = end
+            hist_frag.put()
 
-                hist_frag.tag_history['weeks'] += tag_history['weeks']
-                hist_frag.size += frag_size
-                hist_frag.end = end
-                hist_frag.put()
+            # merge graphs
+            graph_frag = models.TagGraph.get_by_id(append_to,
+                            parent=user_entity.key)
 
-        # merge graphs
-        graph_frags = models.TagGraph.query(
-            models.TagGraph.size != FRAGMENT_SIZE,
-            ancestor=user_entity.key).fetch()
-        for graph_frag in graph_frags:
-            if abs(start - graph_frag.end) < 1000:
-                old_graph = graph_frag.tag_graph
+            old_graph = graph_frag.tag_graph
 
-                for tag in tag_graph:
-                    if tag in old_graph:
-                        old_graph[tag]['plays'] += tag_graph[tag]['plays']
-                        old_graph[tag]['adj'] = old_graph[tag]['adj'].union(
-                            tag_graph[tag]['adj'])
-                    else:
-                        old_graph[tag] = tag_graph[tag]
-                graph_frag.size += frag_size
-                graph_frag.end = end
-                graph_frag.put()
-
-        if not merged:
+            for tag in tag_graph:
+                if tag in old_graph:
+                    old_graph[tag]['plays'] += tag_graph[tag]['plays']
+                    old_graph[tag]['adj'] = old_graph[tag]['adj'].union(
+                        tag_graph[tag]['adj'])
+                else:
+                    old_graph[tag] = tag_graph[tag]
+            graph_frag.size += frag_size
+            graph_frag.end = end
+            graph_frag.put()
+        else:
             store_user_data(user, tag_history, tag_graph,
                 user_entity.key, start, end, frag_size)
 
@@ -253,12 +246,20 @@ def _process_user(request, user, start, end):
     logging.info('%s took: %f seconds.', user, time.time() - p_start)
 
 
-@ndb.transactional
+@ndb.transactional(xg=True)
 def finish_process(request, user, user_entity, last_updated):
-    user_entity.worker_count -= 1
-    if user_entity.worker_count == 0:
+    bu_entity = models.BusyUser.get_by_id(user)
+
+    if bu_entity is None:
+        raise ValueError('Processing %s who wasn\'t registered as BusyUser' % user)
+
+    bu_entity.worker_count -= 1
+    if bu_entity.worker_count == 0:
         user_entity.last_updated = last_updated
-        if user_entity.shout:
+        user_entity.put()
+
+        # do the shoutin'
+        if bu_entity.shout:
             msg = ('Your tag visualizations are ready at %s/history?user=%s'
                     ' and %s/tag_graph?tp=20&user=%s'
                     % (request.host_url, urllib.quote(user),
@@ -274,9 +275,10 @@ def finish_process(request, user, user_entity, last_updated):
             except lastfm.InvalidSessionError:
                 logging.error('Could not shout. Last.fm session invalid.')
 
-            user_entity.shout = False
+        bu_entity.key.delete()
 
-    user_entity.put()
+    else:
+        bu_entity.put()
 
 
 @ndb.transactional
@@ -297,10 +299,13 @@ class TagWorker(webapp2.RequestHandler):
         user = self.request.get('user')
         start = int(self.request.get('start'))
         end = int(self.request.get('end'))
+        append_to = self.request.get('append_to')
+        if not append_to:
+            append_to = None
         user = user.lower()
 
         try:
-            _process_user(self.request, user, start, end)
+            _process_user(self.request, user, start, end, append_to)
         except DeadlineExceededError:
             logging.debug(user + ' request deadline exceeded. Restarting...')
             self.error(500)

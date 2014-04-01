@@ -2,6 +2,8 @@ from google.appengine.ext import ndb
 
 class User(ndb.Model):
     last_updated = ndb.IntegerProperty()
+
+class BusyUser(ndb.Model):
     worker_count = ndb.IntegerProperty()
     shout = ndb.BooleanProperty()
 

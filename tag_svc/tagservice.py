@@ -5,6 +5,8 @@ import models
 import lastfm
 import time
 import webapp2
+import bisect
+import math
 from config import FRAGMENT_SIZE
 from google.appengine.api import taskqueue
 from google.appengine.runtime import apiproxy_errors
@@ -83,47 +85,76 @@ class TagService(webapp2.RequestHandler):
             self.response.write(json.dumps({'error': error_msg}))
             return
 
-        weeks = gwi_json['weeklychartlist']['chart']
+        weeks = [int(week['to']) for week in gwi_json['weeklychartlist']['chart']]
 
         user_entity = models.User.get_by_id(user)
 
         if (user_entity is not None and
-                user_entity.last_updated >= int(weeks[-1]['to'])):
+                user_entity.last_updated >= weeks[-1]):
             self.response.write(json.dumps(
                 self.build_response(user, self.request)))
         else:
             user_data = lfm_api.user_getinfo(user)['user']
             register_date = int(user_data['registered']['unixtime'])
 
-            if user_entity is None or user_entity.worker_count == 0:
+            bu_entity = models.BusyUser.get_by_id(user)
+            if bu_entity is None:
                 # distribute processing among workers
                 date_floor = register_date
                 user_entity = models.User.get_by_id(user)
-                frag_size = 0
+                workers_added = 0
 
                 if user_entity is not None:
                     # get end of incomplete fragment as we must finish it
                     inc_frag = models.TagHistory.query(
-                                    models.TagHistory.size != FRAGMENT_SIZE,
+                                    models.TagHistory.size < FRAGMENT_SIZE,
                                     ancestor=user_entity.key).get()
-                    if inc_frag is not None:
-                        frag_size = inc_frag.size
                     date_floor = user_entity.last_updated
 
-                for i, week in enumerate(weeks):
-                    if int(week['to']) <= date_floor:
-                        continue
+                    if inc_frag is not None:
+                        frag_size = inc_frag.size
+                        start_i = bisect.bisect_right(weeks, date_floor)
 
-                    frag_size += 1
-                    if frag_size == FRAGMENT_SIZE:
-                        add_worker(user, int(weeks[i + 1 - frag_size]['to']),
-                            int(week['to']))
-                        frag_size = 0
+                        for i in xrange(start_i, len(weeks)):
+                            frag_size += 1
+                            if frag_size == FRAGMENT_SIZE:
+                                add_worker(user, weeks[i + 1 - FRAGMENT_SIZE],
+                                    weeks[i], append_to=inc_frag.key.id())
+                                workers_added += 1
+                                date_floor = weeks[i]
+                                break
+                else:
+                    # ensure User entity exists before start building data
+                    # so each data fragment can use this entity as the parent
+                    user_entity = models.User(id=user, last_updated=0)
+                    user_entity.put()
 
-                if frag_size > 0:
+                # get the first week after 'date_floor'
+                start_i = bisect.bisect_right(weeks, date_floor)
+                # DEBUG
+                # worker_count = int(math.ceil((len(weeks)-start_i) /
+                #     float(FRAGMENT_SIZE)))
+
+                # DEBUG
+                #workers_added = 0
+
+                for i in xrange(start_i+FRAGMENT_SIZE,
+                        len(weeks), FRAGMENT_SIZE):
+                    week = weeks[i]
+                    add_worker(user, weeks[i + 1 - FRAGMENT_SIZE], week)
+                    workers_added += 1
+
+                remainder = (len(weeks)-start_i) % FRAGMENT_SIZE
+                if remainder > 0:
                     # submit job for last fragment
-                    add_worker(user, int(weeks[len(weeks)-frag_size]['to']),
-                        int(weeks[-1]['to']))
+                    add_worker(user, weeks[len(weeks)-remainder],
+                        weeks[-1])
+                    workers_added += 1
+
+                if workers_added > 0:
+                    bu_entity = models.BusyUser(id=user, shout=False,
+                        worker_count=workers_added)
+                    bu_entity.put()
 
             self.response.headers['Cache-Control'] = \
                 'no-transform,public,max-age=30'
@@ -134,34 +165,25 @@ class TagService(webapp2.RequestHandler):
             if last_updated is not None:
                 resp_data['last_updated'] = last_updated
 
-            if int(weeks[-1]['to']) <= register_date:
+            if weeks[-1] <= register_date:
                 resp_data = {'error': 'Your account is too new for Last.fm to have data.'}
 
             self.response.write(json.dumps(resp_data))
 
-@ndb.transactional(retries=5)
-def add_worker(user, start, end):
+
+@ndb.transactional
+def add_worker(user, start, end, append_to=None):
     logging.debug('adding worker for %d-%d', start, end)
-    user_entity = models.User.get_by_id(user)
-    if user_entity is not None:
-        user_entity.worker_count += 1
-    else:
-        user_entity = models.User(id=user, last_updated=0, shout=False,
-            worker_count=1)
-    user_entity.put()
+    params = {'user': user,  'start': start, 'end': end }
+    if append_to is not None:
+        params['append_to'] = append_to
 
     try:
         taskqueue.add(url='/worker',
             name='%s_%d_%d' % (user, int(time.time()), start),
-            params={'user': user,
-                'start': start,
-                'end': end
-            }
+            params=params
         )
     except taskqueue.InvalidTaskNameError:
         taskqueue.add(url='/worker',
-            params={'user': user,
-                'start': start,
-                'end': end
-            }
+            params=params
         )

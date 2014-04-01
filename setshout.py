@@ -2,6 +2,7 @@ import webapp2
 import os
 import json
 from tag_svc import models
+from google.appengine.ext import ndb
 
 class ShoutSetter(webapp2.RequestHandler):
     def post(self):
@@ -13,14 +14,21 @@ class ShoutSetter(webapp2.RequestHandler):
         else:
             user = user.lower()
 
-        usr_entity = models.User.get_by_id(user)
-        if usr_entity is not None:
-            if not usr_entity.shout:
-                usr_entity.shout = True
-                usr_entity.put()
+        if set_shout(user):
             self.response.write(json.dumps({'shout': '1'}))
         else:
             self.response.write(json.dumps({'error': 'Not currently' +
                 ' processing ' + user}))
 
 app = webapp2.WSGIApplication([('/set_shout', ShoutSetter)], debug=True)
+
+@ndb.transactional
+def set_shout(user):
+    bu_entity = models.BusyUser.get_by_id(user)
+    if bu_entity is not None:
+        if not bu_entity.shout:
+            bu_entity.shout = True
+            bu_entity.put()
+        return True
+    else:
+        return False
