@@ -119,16 +119,12 @@ def _process_user(request, user, start, end, append_to=None):
     logging.info('Started processing %s for %d-%d', user, start, end)
     weeks = lfm_api.user_getweekintervals(user)['weeklychartlist']['chart']
 
-    frag_size = 0
-
 
     start_i = bisect_left_f(weeks, start, f=lambda week: int(week['to']))
     end_i = bisect_left_f(weeks, end, f=lambda week: int(week['to']))
 
     for i in xrange(start_i, end_i+1):
         week = weeks[i]
-
-        frag_size += 1
 
         week_elem = {'from': week['from'],
             'to': week['to'], 'tags':[]}
@@ -207,39 +203,33 @@ def _process_user(request, user, start, end, append_to=None):
             user)
         return
 
-    if frag_size == FRAGMENT_SIZE:
-        store_user_data(user, tag_history, tag_graph,
-            user_entity.key, start, end, frag_size)
+    if append_to is not None:
+        # merge histories
+        hist_frag = TagHistory.get_by_id(append_to,
+                        parent=user_entity.key, namespace=DS_VERSION)
+
+        hist_frag.tag_history['weeks'] += tag_history['weeks']
+        hist_frag.end = end
+        hist_frag.put()
+
+        # merge graphs
+        graph_frag = TagGraph.get_by_id(append_to,
+                        parent=user_entity.key, namespace=DS_VERSION)
+
+        old_graph = graph_frag.tag_graph
+
+        for tag in tag_graph:
+            if tag in old_graph:
+                old_graph[tag]['plays'] += tag_graph[tag]['plays']
+                old_graph[tag]['adj'] = old_graph[tag]['adj'].union(
+                    tag_graph[tag]['adj'])
+            else:
+                old_graph[tag] = tag_graph[tag]
+        graph_frag.end = end
+        graph_frag.put()
     else:
-        if append_to is not None:
-            # merge histories
-            hist_frag = TagHistory.get_by_id(append_to,
-                            parent=user_entity.key, namespace=DS_VERSION)
-
-            hist_frag.tag_history['weeks'] += tag_history['weeks']
-            hist_frag.size += frag_size
-            hist_frag.end = end
-            hist_frag.put()
-
-            # merge graphs
-            graph_frag = TagGraph.get_by_id(append_to,
-                            parent=user_entity.key, namespace=DS_VERSION)
-
-            old_graph = graph_frag.tag_graph
-
-            for tag in tag_graph:
-                if tag in old_graph:
-                    old_graph[tag]['plays'] += tag_graph[tag]['plays']
-                    old_graph[tag]['adj'] = old_graph[tag]['adj'].union(
-                        tag_graph[tag]['adj'])
-                else:
-                    old_graph[tag] = tag_graph[tag]
-            graph_frag.size += frag_size
-            graph_frag.end = end
-            graph_frag.put()
-        else:
-            store_user_data(user, tag_history, tag_graph,
-                user_entity.key, start, end, frag_size)
+        store_user_data(user, tag_history, tag_graph,
+            user_entity.key, start, end)
 
     finish_process(request, user, user_entity, int(weeks[-1]['to']))
     logging.info('%s took: %f seconds.', user, time.time() - p_start)
@@ -301,14 +291,14 @@ def bisect_left_f(a, x, lo=0, hi=None, f=lambda y: y):
     return lo
 
 @ndb.transactional
-def store_user_data(user, tag_history, tag_graph, parent, start, end, frag_size):
+def store_user_data(user, tag_history, tag_graph, parent, start, end):
     if tag_history['weeks']:
         TagHistory(id=user+str(start), tag_history=tag_history,
             start=start, end=end,
-            size=frag_size, parent=parent, namespace=DS_VERSION).put_async()
+            parent=parent, namespace=DS_VERSION).put_async()
         TagGraph(id=user+str(start), tag_graph=tag_graph,
             start=start, end=end,
-            size=frag_size, parent=parent, namespace=DS_VERSION).put_async()
+            parent=parent, namespace=DS_VERSION).put_async()
 
         logging.debug('Successfully stored tag data for ' + user)
 
