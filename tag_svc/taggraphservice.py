@@ -7,7 +7,6 @@ import time
 from config import DS_VERSION
 from tagservice import TagService
 from google.appengine.api import taskqueue
-from google.appengine.runtime import apiproxy_errors
 from google.appengine.ext import ndb
 from google.appengine.api.urlfetch_errors import DeadlineExceededError
 
@@ -19,25 +18,21 @@ class TagGraphService(TagService):
     def build_response(self, user, request):
         tag_graph = {}
 
-        try:
-            user_entity = User.get_by_id(user, namespace=DS_VERSION)
-            qry = TagGraph.query(ancestor=user_entity.key,
-                namespace=DS_VERSION).order(
-                TagGraph.start)
-            for graph_frag in qry.fetch():
-                # merge graph to aggregate graph
-                sub_graph = graph_frag.tag_graph
-                for tag in sub_graph:
-                    if tag in tag_graph:
-                        tag_graph[tag]['plays'] += sub_graph[tag]['plays']
-                        tag_graph[tag]['adj'] = tag_graph[tag]['adj'].union(
-                            sub_graph[tag]['adj'])
-                    else:
-                        tag_graph[tag] = sub_graph[tag]
-        except apiproxy_errors.OverQuotaError as e:
-            logging.error(e)
-            return {'error': 'AppEngine error. Go tell ' + \
-                    'atnguyen4@gmail.com to buy more Google resources.'}
+        user_entity = User.get_by_id(user, namespace=DS_VERSION)
+        qry = TagGraph.query(ancestor=user_entity.key,
+            namespace=DS_VERSION).order(
+            TagGraph.start)
+
+        for graph_frag in qry.fetch():
+            # merge graph to aggregate graph
+            sub_graph = graph_frag.tag_graph
+            for tag in sub_graph:
+                if tag in tag_graph:
+                    tag_graph[tag]['plays'] += sub_graph[tag]['plays']
+                    tag_graph[tag]['adj'] = tag_graph[tag]['adj'].union(
+                        sub_graph[tag]['adj'])
+                else:
+                    tag_graph[tag] = sub_graph[tag]
 
         # format JSON
         tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])}

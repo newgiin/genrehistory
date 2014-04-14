@@ -16,7 +16,7 @@ from google.appengine.api import urlfetch
 
 lfm_api = lastfm.LastFm()
 CACHE_PRD = 604800 # 1 week
-AT_CACHE_NS = 'artist_tags'
+NS_AT_CACHE = 'artist_tags'
 TAGS_PER_ARTIST = 3
 PLAY_THRESHOLD = 6
 NUM_TOP_ARTISTS = 3
@@ -138,7 +138,7 @@ def _process_user(request, user, start, end, append_to=None):
             artist_name = artist['name']
             artist_plays = int(artist['playcount'])
             artist_tags = memcache.get(artist_name,
-                namespace=AT_CACHE_NS)
+                namespace=NS_AT_CACHE)
 
             if artist_tags is None:
                 artist_tags = _Quota.run_with_quota(p_start, quota_state,
@@ -146,7 +146,7 @@ def _process_user(request, user, start, end, append_to=None):
                     TAGS_PER_ARTIST)
 
                 memcache.add(artist_name, artist_tags, CACHE_PRD,
-                    namespace=AT_CACHE_NS)
+                    namespace=NS_AT_CACHE)
 
             # build tag history data
             if artist_tags:

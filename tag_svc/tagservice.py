@@ -16,12 +16,17 @@ from google.appengine.api.urlfetch_errors import DeadlineExceededError
 lfm_api = lastfm.LastFm()
 
 """
-Boilerplate for generating tag data response
+Generic service for returning tag data if the data is ready,
+otherwise returning an appropriate error/status response and distributing
+tasks to tag workers to bring user data up-to-date.
+
+Implementing subclasses implement build_response() which is
+called when the User data is up-to-date.
 """
 class TagService(webapp2.RequestHandler):
 
     """
-    Meant to be overriden by subclass.
+    To be overriden by subclass.
     Returns JSON response in dict format with the current data in the datastore
     associated with the user.
     """
@@ -87,7 +92,12 @@ class TagService(webapp2.RequestHandler):
 
         weeks = [int(week['to']) for week in gwi_json['weeklychartlist']['chart']]
 
-        user_entity = User.get_by_id(user, namespace=DS_VERSION)
+        try:
+            user_entity = User.get_by_id(user, namespace=DS_VERSION)
+        except apiproxy_errors.OverQuotaError as e:
+            logging.critical(e)
+            return {'error': 'AppEngine error. Go tell ' + \
+                    'atnguyen4@gmail.com to buy more Google resources.'}
 
         if (user_entity is not None and
                 user_entity.last_updated >= weeks[-1]):
@@ -175,7 +185,7 @@ def get_interval_size(weeks, start, end):
 
 @ndb.transactional
 def add_worker(user, start, end, append_to=None):
-    logging.debug('adding worker for %d-%d-%s', start, end, append_to)
+    logging.debug('adding worker for %s:%d-%d-%s', user, start, end, append_to)
     params = {'user': user,  'start': start, 'end': end }
     if append_to is not None:
         params['append_to'] = append_to

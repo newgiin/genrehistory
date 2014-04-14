@@ -10,7 +10,6 @@ class BusyUser(ndb.Model):
 class DataFragment(ndb.Model):
     start = ndb.IntegerProperty()
     end = ndb.IntegerProperty()
-    size = ndb.IntegerProperty()
 
 class TagHistory(DataFragment):
     tag_history = ndb.JsonProperty()

@@ -3,6 +3,7 @@ import os
 import json
 from tag_svc import models
 from google.appengine.ext import ndb
+from tag_svc.config import DS_VERSION
 
 class ShoutSetter(webapp2.RequestHandler):
     def post(self):
@@ -24,7 +25,8 @@ app = webapp2.WSGIApplication([('/set_shout', ShoutSetter)], debug=True)
 
 @ndb.transactional
 def set_shout(user):
-    bu_entity = models.BusyUser.get_by_id(user)
+    bu_entity = models.BusyUser.get_by_id(user, namespace=DS_VERSION)
+
     if bu_entity is not None:
         if not bu_entity.shout:
             bu_entity.shout = True
