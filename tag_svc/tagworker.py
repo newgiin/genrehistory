@@ -6,7 +6,6 @@ from models import TagHistory, TagGraph, User, BusyUser
 from config import FRAGMENT_SIZE, DS_VERSION
 from google.appengine.ext import ndb
 from google.appengine.api import memcache, taskqueue
-from google.appengine.runtime import DeadlineExceededError
 from google.appengine.api.urlfetch_errors import DeadlineExceededError as \
     UrlFetchDeadlineExceededError
 import time
@@ -21,8 +20,6 @@ TAGS_PER_ARTIST = 3
 PLAY_THRESHOLD = 6
 NUM_TOP_ARTISTS = 3
 MAX_TPW = 10 # tags per week
-MAX_REQUEST_TIME = 600 # 10 minutes
-DEADLINE_EXCEED_GRACE_PERIOD = 30
 
 
 def _get_weeklyartists(user, start, end):
@@ -85,9 +82,6 @@ class _Quota:
                 # add half a second due to potential imprecisions
                 # with time.sleep()
                 wake_time = quota_state.next_interval + 0.5
-                if (wake_time > start +
-                        MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
-                    raise DeadlineExceededError
 
                 logging.debug('Reached request limit, waiting: %f seconds.',
                     quota_state.next_interval - now)
@@ -180,10 +174,6 @@ def _process_user(request, user, start, end, append_to=None):
         week_elem['tags'] = week_elem['tags'][:MAX_TPW]
 
         tag_history['weeks'].append(week_elem)
-
-        if (time.time() - p_start >
-                MAX_REQUEST_TIME - DEADLINE_EXCEED_GRACE_PERIOD):
-            raise DeadlineExceededError
 
     # filter out tags from graph with plays below threshold
     # TODO use different PLAY_THRESHOLD now that tagworker uses fragments?
@@ -322,9 +312,6 @@ class TagWorker(webapp2.RequestHandler):
 
         try:
             _process_user(self.request, user, start, end, append_to)
-        except DeadlineExceededError:
-            logging.debug(user + ' request deadline exceeded. Restarting...')
-            self.error(500)
         except UrlFetchDeadlineExceededError as e:
             logging.warning(e)
             self.error(500)
