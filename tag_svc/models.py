@@ -2,6 +2,7 @@ from google.appengine.ext import ndb
 
 class User(ndb.Model):
     last_updated = ndb.IntegerProperty()
+    fragments = ndb.JsonProperty(repeated=True)
 
 class BusyUser(ndb.Model):
     worker_count = ndb.IntegerProperty()

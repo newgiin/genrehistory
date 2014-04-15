@@ -1,31 +1,38 @@
 import webapp2
-import json
 import logging
 from models import User, TagGraph
-import lastfm
-import time
 from config import DS_VERSION
 from tagservice import TagService
-from google.appengine.api import taskqueue
-from google.appengine.ext import ndb
-from google.appengine.api.urlfetch_errors import DeadlineExceededError
 
-
-lfm_api = lastfm.LastFm()
 
 class TagGraphService(TagService):
 
     def build_response(self, user, request):
         tag_graph = {}
-
         user_entity = User.get_by_id(user, namespace=DS_VERSION)
+        start = end = -1
+
         qry = TagGraph.query(ancestor=user_entity.key,
             namespace=DS_VERSION).order(
             TagGraph.start)
 
-        for graph_frag in qry.fetch():
+        # NOTE: 'from'/'to' are not exactly analagous to 'start'/'end'.
+        # 'from' and 'to' both correspond to fragment 'start' properties
+        # (as opposed to 'to' corresponsing to an 'end' value).
+        # Since filter properties must be same as order property,
+        # we filter only by fragment 'start' dates.
+        if request.get('from') and request.get('from').isdigit():
+            qry = qry.filter(TagGraph.start >= int(request.get('from')))
+
+        if request.get('to') and request.get('to').isdigit():
+            qry = qry.filter(TagGraph.start <= int(request.get('to')))
+
+        fetch_results = qry.fetch()
+
+        for graph_entity in fetch_results:
             # merge graph to aggregate graph
-            sub_graph = graph_frag.tag_graph
+            sub_graph = graph_entity.tag_graph
+
             for tag in sub_graph:
                 if tag in tag_graph:
                     tag_graph[tag]['plays'] += sub_graph[tag]['plays']
@@ -33,6 +40,10 @@ class TagGraphService(TagService):
                         sub_graph[tag]['adj'])
                 else:
                     tag_graph[tag] = sub_graph[tag]
+
+        if fetch_results:
+            start = fetch_results[0].start
+            end = fetch_results[-1].end
 
         # format JSON
         tag_objs = [{'tag': tag, 'plays': v['plays'], 'adj': list(v['adj'])}
@@ -50,7 +61,7 @@ class TagGraphService(TagService):
 
                 obj['adj'] = adj
 
-        return {'user': user, 'tags':tag_objs}
+        return {'user': user, 'tags': tag_objs, 'start': start, 'end': end}
 
 
 app = webapp2.WSGIApplication([

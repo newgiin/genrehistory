@@ -105,7 +105,7 @@ function render(data, status) {
             status_div.innerHTML = '';
             var status_text = document.createElement('div');
             status_text.innerHTML = 'Data still processing. First time could ' +
-                                        'take > 10 minutes.';
+                                        'take 10 minutes.';
 
             var update_time = 'Never';
             if (data.last_updated) {

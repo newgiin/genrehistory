@@ -1,9 +1,17 @@
 var user = getParameterByName('user');
 var tp = getParameterByName('tp');
+var from = getParameterByName('from');
+var to = getParameterByName('to');
 
 $('#user_input').val(user);
 $('#tp_input').val(tp);
-$.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) + '&user=' + encodeURIComponent(user)).done(render).fail(disp_error);
+$.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
+    '&user=' + encodeURIComponent(user) +
+    '&from=' + encodeURIComponent(from) +
+    '&to=' + encodeURIComponent(to)).done(render).fail(disp_error);
+
+$.getJSON('/user_fragments?user=' + encodeURIComponent(user)).done(
+    fill_date_select).fail(disp_error);
 
 function render(data, status, jqXHR) {
     var status_div = document.getElementById('status');
@@ -15,7 +23,7 @@ function render(data, status, jqXHR) {
             status_div.innerHTML = '';
             var status_text = document.createElement('div');
             status_text.innerHTML = 'Data still processing. First time could ' +
-                                        'take > 10 minutes.';
+                                        'take 10 minutes.';
 
             var update_time = 'Never';
             if (data.last_updated) {
@@ -35,37 +43,75 @@ function render(data, status, jqXHR) {
             status_div.innerHTML = data.text;
         }
     } else {
-        var sys = arbor.ParticleSystem(100, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
-        sys.parameters({gravity:true}); // use center-gravity to make the graph settle nicely (ymmv)
-        sys.renderer = Renderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
+        render_graph(data);
+    }
+}
 
-        var MAX_FONT = 60;
-        var MIN_FONT = 10;
-        var MAX_PLAYS = 1;
 
-        if (data.tags.length > 0) {
-            MAX_PLAYS = data.tags[0].plays;
-        }
+function render_graph(data) {
+    var sys = arbor.ParticleSystem(100, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
+    sys.parameters({gravity:true}); // use center-gravity to make the graph settle nicely (ymmv)
+    sys.renderer = Renderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
 
-        for (var i = 0; i < data.tags.length; i++) {
-            var tag = data.tags[i].tag;
-            var fs = Math.max(MIN_FONT,
-                            parseInt(data.tags[i].plays*MAX_FONT / MAX_PLAYS));
-            sys.addNode(tag, {font_size: fs, color: '#3096FC'});
+    var MAX_FONT = 60;
+    var MIN_FONT = 10;
+    var MAX_PLAYS = 1;
 
-            for (var j = 0; j < data.tags[i].adj.length; j++) {
-                var edge = data.tags[i].adj[j];
-                var dst = sys.getNode(edge);
-                // ensures existing font_sizes not overwritten
-                if (!dst) {
-                    dst = edge;
-                }
-                sys.addEdge(sys.getNode(tag), dst);
+    if (data.tags.length > 0) {
+        MAX_PLAYS = data.tags[0].plays;
+    }
+
+    for (var i = 0; i < data.tags.length; i++) {
+        var tag = data.tags[i].tag;
+        var fs = Math.max(MIN_FONT,
+                        parseInt(data.tags[i].plays*MAX_FONT / MAX_PLAYS));
+        sys.addNode(tag, {font_size: fs, color: '#3096FC'});
+
+        for (var j = 0; j < data.tags[i].adj.length; j++) {
+            var edge = data.tags[i].adj[j];
+            var dst = sys.getNode(edge);
+            // ensures existing font_sizes not overwritten
+            if (!dst) {
+                dst = edge;
             }
+            sys.addEdge(sys.getNode(tag), dst);
+        }
+    }
+
+    $('#viewport').css('display', 'block');
+    $('#status').css('visibility', 'hidden');
+}
+
+
+function fill_date_select(data) {
+    if ('fragments' in data) {
+        if (data.fragments.length > 0) {
+            $('#from_input').empty();
+            $('#to_input').empty();
         }
 
-        $('#viewport').css('display', 'block');
-        $('#status').css('visibility', 'hidden');
+        for (var i = 0; i < data.fragments.length; i++) {
+            var frag = data.fragments[i];
+
+            var option = $('<option value="' + frag.start + '">' +
+                timestampToDate(frag.start) + '</option>');
+            if (frag.start == from) {
+                option.attr('selected', 'selected');
+            }
+            $('#from_input').append(option);
+
+            /* Use start timestamp as value since
+            service uses start dates to uniquely identify fragments.
+            technically using 'frag.end' as the value would also
+            get the same result, but we use the 'start' timestamp
+            for consistency. */
+            option = $('<option value="' + frag.start + '">' +
+                timestampToDate(frag.end) + '</option>');
+            if (frag.start == to) {
+                option.attr('selected', 'selected');
+            }
+            $('#to_input').append(option);
+        }
     }
 }
 
