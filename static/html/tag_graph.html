@@ -19,27 +19,21 @@
         <a href="/"><img src="/img/lft_circarrow.png" align="top" alt="Home"/></a>
         user: <input type="text" id="user_input" name="user"></input>
         Top x% tags: <input type="text" id="tp_input" name="tp"></input>
-        From week ending:
-        <select name="from" id="from_input">
-          <option value="">-------------------</option>
-        </select>
-        To:
-        <select name="to" id="to_input">
-          <option value="">-------------------</option>
-        </select>
         <input type="submit" value="go"></input>
+        <img class="control" id="next_frag_btn" src="img/next.png" alt="next time interval"/>
+        <span id="interval_txt"></span>
       </form>
       <div id="status">Getting data...</div>
       <canvas id="viewport" width="1300" height="800"></canvas>
-      </canvas>
     </div>
   </div>
   <div id="footer">by <a href="http://andruunwien.com">Andrew</a> | Data from <a href="http://last.fm">Last.fm</a> | Icons by <a href="http://glyphicons.com/">Glyphicons</a>,
   under <a href="http://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a></div>
-  <script src="/js/jquery-1.10.2.min.js"></script>
-  <script type="text/javascript" src="/js/arbor.js"></script>
-  <script type="text/javascript" src="/js/graphics.js"></script>
-  <script type="text/javascript" src="/js/renderer.js"></script>
-  <script type="text/javascript" src="/js/tag_graph.js"></script>
+  <script src="/js/lib/jquery-1.10.2.min.js"></script>
+  <script src="/js/lib/arbor/arbor.js"></script>
+  <script src="/js/lib/arbor/graphics.js"></script>
+  <script src="/js/lib/arbor/arbor-tween.js"></script>
+  <script src="/js/renderer.js"></script>
+  <script src="/js/tag_graph.js"></script>
 </body>
 </html>

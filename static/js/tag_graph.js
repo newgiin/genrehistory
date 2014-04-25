@@ -1,17 +1,19 @@
 var user = getParameterByName('user');
 var tp = getParameterByName('tp');
-var from = getParameterByName('from');
-var to = getParameterByName('to');
+var frag_chart = [];
+var curr_frag = -1;
+var sys = null;
+
+var MAX_FONT = 60;
+var MIN_FONT = 10;
 
 $('#user_input').val(user);
 $('#tp_input').val(tp);
 $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
-    '&user=' + encodeURIComponent(user) +
-    '&from=' + encodeURIComponent(from) +
-    '&to=' + encodeURIComponent(to)).done(render).fail(disp_error);
+    '&user=' + encodeURIComponent(user)).done(render).fail(disp_error);
 
 $.getJSON('/user_fragments?user=' + encodeURIComponent(user)).done(
-    fill_date_select).fail(disp_error);
+    populate_frag_chart).fail(disp_error);
 
 function render(data, status, jqXHR) {
     var status_div = document.getElementById('status');
@@ -49,23 +51,21 @@ function render(data, status, jqXHR) {
 
 
 function render_graph(data) {
-    var sys = arbor.ParticleSystem(100, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
+    sys = arbor.ParticleSystem(100, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
     sys.parameters({gravity:true}); // use center-gravity to make the graph settle nicely (ymmv)
     sys.renderer = Renderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
 
-    var MAX_FONT = 60;
-    var MIN_FONT = 10;
-    var MAX_PLAYS = 1;
+    var max_plays = 1;
 
     if (data.tags.length > 0) {
-        MAX_PLAYS = data.tags[0].plays;
+        max_plays = data.tags[0].plays;
     }
 
     for (var i = 0; i < data.tags.length; i++) {
         var tag = data.tags[i].tag;
         var fs = Math.max(MIN_FONT,
-                        parseInt(data.tags[i].plays*MAX_FONT / MAX_PLAYS));
-        sys.addNode(tag, {font_size: fs, color: '#3096FC'});
+                        parseInt(MAX_FONT * data.tags[i].plays / max_plays));
+        var node = sys.addNode(tag, {font_size: fs, color: '#3096FC'});
 
         for (var j = 0; j < data.tags[i].adj.length; j++) {
             var edge = data.tags[i].adj[j];
@@ -74,39 +74,68 @@ function render_graph(data) {
             if (!dst) {
                 dst = edge;
             }
-            sys.addEdge(sys.getNode(tag), dst);
+            sys.addEdge(node, dst);
         }
     }
-
+    console.log(sys.getEdgesFrom('electronic').length);
     $('#viewport').css('display', 'block');
     $('#status').css('visibility', 'hidden');
 }
 
 
-function fill_date_select(data) {
+function populate_frag_chart(data) {
     if ('fragments' in data) {
-        for (var i = 0; i < data.fragments.length; i++) {
-            var frag = data.fragments[i];
-
-            var option = $('<option value="' + frag.start + '">' +
-                timestampToDate(frag.start) + '</option>');
-            if (frag.start == from) {
-                option.attr('selected', 'selected');
+        frag_chart = data.fragments;
+        $('#next_frag_btn').click(function() {
+            if (curr_frag < frag_chart.length-1) {
+                curr_frag++;
+                if (curr_frag === 0) {
+                    // clear graph
+                    sys.eachNode(function(node) {
+                        sys.pruneNode(node);
+                    });
+                }
+                // graft
+                $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
+                    '&user=' + encodeURIComponent(user) +
+                    '&to=' + frag_chart[curr_frag].start).done(
+                    update_graph).fail(disp_error);
             }
-            $('#from_input').append(option);
+        });
+    }
+}
 
-            /* Use start timestamp as value since
-            service uses start dates to uniquely identify fragments.
-            technically using 'frag.end' as the value would also
-            get the same result, but we use the 'start' timestamp
-            for consistency. */
-            option = $('<option value="' + frag.start + '">' +
-                timestampToDate(frag.end) + '</option>');
-            if (frag.start == to) {
-                option.attr('selected', 'selected');
-            }
-            $('#to_input').append(option);
+function update_graph(data) {
+    var max_plays = 1;
+
+    if (data.tags.length > 0) {
+        max_plays = data.tags[0].plays;
+    }
+
+    for (var i = 0; i < data.tags.length; i++) {
+        var tag = data.tags[i].tag;
+        var fs = Math.max(MIN_FONT,
+                        parseInt(MAX_FONT * data.tags[i].plays / max_plays));
+        var node = sys.getNode(tag);
+        if (!node) {
+            sys.addNode(tag, {font_size: fs, color: '#3096FC'});
+        } else {
+            sys.tweenNode(tag, 1, {font_size: fs});
         }
+    }
+
+    for (var i = 0; i < data.tags.length; i++) {
+        var tag_obj = data.tags[i];
+        for (var j = 0; j < tag_obj.adj.length; j++) {
+            sys.addEdge(sys.getNode(tag_obj.tag),
+                sys.getNode(tag_obj.adj[j]));
+        }
+    }
+    $('#interval_txt').text('To: ' + timestampToDate(frag_chart[curr_frag].end));
+    console.log(sys.getEdgesFrom('electronic').length);
+    var edges = sys.getEdgesFrom('electronic');
+    for (var i = 0; i < edges.length; i++) {
+        console.log(edges[i].target.name);
     }
 }
 
