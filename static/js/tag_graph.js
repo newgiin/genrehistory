@@ -23,7 +23,7 @@ function render(data, status, jqXHR) {
             status_div.innerHTML = '';
             var status_text = document.createElement('div');
             status_text.innerHTML = 'Data still processing. First time could ' +
-                                        'take 10 minutes.';
+                                        'take around 10 minutes.';
 
             var update_time = 'Never';
             if (data.last_updated) {
@@ -85,11 +85,6 @@ function render_graph(data) {
 
 function fill_date_select(data) {
     if ('fragments' in data) {
-        if (data.fragments.length > 0) {
-            $('#from_input').empty();
-            $('#to_input').empty();
-        }
-
         for (var i = 0; i < data.fragments.length; i++) {
             var frag = data.fragments[i];
 

@@ -204,6 +204,8 @@ def finish_process(request, user, last_updated):
     user_entity = User.get_by_id(user, namespace=DS_VERSION)
     bu_entity = BusyUser.get_by_id(user, namespace=DS_VERSION)
 
+    # possible as same tasks may be executed more than once, see
+    # https://developers.google.com/appengine/docs/python/taskqueue/overview-push#Python_Using_push_queues
     if bu_entity is None:
         logging.error("Processing %s who wasn't registered as BusyUser", user)
     else:
