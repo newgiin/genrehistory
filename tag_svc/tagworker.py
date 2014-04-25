@@ -257,7 +257,7 @@ def bisect_left_f(a, x, lo=0, hi=None, f=lambda y: y):
             hi = mid
     return lo
 
-@ndb.transactional
+@ndb.transactional(retries=5)
 def store_user_data(user, tag_history, tag_graph, start, end, append_to):
     user_entity = User.get_by_id(user, namespace=DS_VERSION)
     if user_entity is None:

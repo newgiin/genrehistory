@@ -65,7 +65,8 @@ function render_graph(data) {
         var tag = data.tags[i].tag;
         var fs = Math.max(MIN_FONT,
                         parseInt(MAX_FONT * data.tags[i].plays / max_plays));
-        var node = sys.addNode(tag, {font_size: fs, color: '#3096FC'});
+        var node = sys.addNode(tag, {font_size: fs, color: '#3096FC', plays:
+                        data.tags[i].plays});
 
         for (var j = 0; j < data.tags[i].adj.length; j++) {
             var edge = data.tags[i].adj[j];
@@ -98,45 +99,132 @@ function populate_frag_chart(data) {
                 // graft
                 $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
                     '&user=' + encodeURIComponent(user) +
+                    '&from=' + frag_chart[curr_frag].start +
                     '&to=' + frag_chart[curr_frag].start).done(
-                    update_graph).fail(disp_error);
+                    graft_fragment).fail(disp_error);
+            }
+        });
+
+        $('#prev_frag_btn').click(function() {
+            if (curr_frag > 0) {
+                curr_frag--;
+                console.log('/tag_graph_data?tp=' + encodeURIComponent(tp) +
+                    '&user=' + encodeURIComponent(user) +
+                    '&from=' + frag_chart[0].start +
+                    '&to=' + frag_chart[curr_frag].start);
+                $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
+                    '&user=' + encodeURIComponent(user) +
+                    '&from=' + frag_chart[0].start +
+                    '&to=' + frag_chart[curr_frag].start).done(
+                    merge_fragment).fail(disp_error);
             }
         });
     }
 }
 
-function update_graph(data) {
-    var max_plays = 1;
-
-    if (data.tags.length > 0) {
-        max_plays = data.tags[0].plays;
-    }
-
+/*
+* Custom grafting function which tweens new font size
+* values for existing nodes.
+*/
+function graft_fragment(data) {
+    /*
+    * Update playcounts and edges
+    */
     for (var i = 0; i < data.tags.length; i++) {
         var tag = data.tags[i].tag;
-        var fs = Math.max(MIN_FONT,
-                        parseInt(MAX_FONT * data.tags[i].plays / max_plays));
         var node = sys.getNode(tag);
+
         if (!node) {
-            sys.addNode(tag, {font_size: fs, color: '#3096FC'});
+            sys.addNode(tag, {color: '#3096FC', font_size: MIN_FONT,
+                plays: data.tags[i].plays});
         } else {
-            sys.tweenNode(tag, 1, {font_size: fs});
+            node.data.plays += data.tags[i].plays;
         }
     }
 
     for (var i = 0; i < data.tags.length; i++) {
         var tag_obj = data.tags[i];
+        var node = sys.getNode(tag_obj.tag);
+
         for (var j = 0; j < tag_obj.adj.length; j++) {
-            sys.addEdge(sys.getNode(tag_obj.tag),
-                sys.getNode(tag_obj.adj[j]));
+            var dst = sys.getNode(tag_obj.adj[j]);
+            sys.addEdge(node, dst);
         }
     }
-    $('#interval_txt').text('To: ' + timestampToDate(frag_chart[curr_frag].end));
-    console.log(sys.getEdgesFrom('electronic').length);
-    var edges = sys.getEdgesFrom('electronic');
-    for (var i = 0; i < edges.length; i++) {
-        console.log(edges[i].target.name);
+
+    /*
+    * Seems to be a delay between when nodes are added, and when
+    * they're available to eachNode().
+    */
+    setTimeout(function() {
+        var max_plays = -Infinity;
+
+        // find max playcount
+        sys.eachNode(function(node) {
+            if (node.data.plays > max_plays) {
+                max_plays = node.data.plays;
+            }
+        });
+
+        /*
+        * Update font sizes
+        */
+        sys.eachNode(function(node) {
+            var fs = Math.max(MIN_FONT,
+                            parseInt(MAX_FONT * node.data.plays / max_plays));
+            sys.tweenNode(node.name, 1, {font_size: fs});
+        });
+    }, 500);
+    $('#interval_txt').text(timestampToDate(frag_chart[0].start) +
+        ' - ' + timestampToDate(frag_chart[curr_frag].end));
+}
+
+function merge_fragment(data) {
+    var branch = {nodes: {}, edges: {}};
+
+    for (var i = 0; i < data.tags.length; i++) {
+        var tag_obj = data.tags[i];
+        var node_data = {color: '#3096FC', plays: tag_obj.plays,
+            font_size: MIN_FONT};
+
+        var old_node = sys.getNode(tag_obj.tag);
+        if (old_node) {
+            node_data.font_size = old_node.data.font_size;
+        } else {
+            console.log(tag_obj.tag);
+        }
+
+        branch.nodes[tag_obj.tag] = node_data;
+
+        branch.edges[tag_obj.tag] = {};
+        for (var j = 0; j < tag_obj.adj.length; j++) {
+            branch.edges[tag_obj.tag][tag_obj.adj[j]] = {};
+        }
     }
+
+    sys.merge(branch);
+
+    setTimeout(function() {
+        var max_plays = -Infinity;
+
+        // find max playcount
+        sys.eachNode(function(node) {
+            if (node.data.plays > max_plays) {
+                max_plays = node.data.plays;
+            }
+        });
+
+        /*
+        * Update font sizes
+        */
+        sys.eachNode(function(node) {
+            var fs = Math.max(MIN_FONT,
+                            parseInt(MAX_FONT * node.data.plays / max_plays));
+            sys.tweenNode(node.name, 1, {font_size: fs});
+        });
+    }, 500);
+    $('#interval_txt').text(timestampToDate(frag_chart[0].start) +
+        ' - ' + timestampToDate(frag_chart[curr_frag].end));
 }
 
 function shout_callback(data) {
