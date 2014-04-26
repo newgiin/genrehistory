@@ -207,7 +207,7 @@ def finish_process(request, user, last_updated):
     # possible as same tasks may be executed more than once, see
     # https://developers.google.com/appengine/docs/python/taskqueue/overview-push#Python_Using_push_queues
     if bu_entity is None:
-        logging.error("Processing %s who wasn't registered as BusyUser", user)
+        logging.warning("Processing %s who wasn't registered as BusyUser", user)
     else:
         bu_entity.worker_count -= 1
         if bu_entity.worker_count == 0:

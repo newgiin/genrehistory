@@ -78,7 +78,6 @@ function render_graph(data) {
             sys.addEdge(node, dst);
         }
     }
-    console.log(sys.getEdgesFrom('electronic').length);
     $('#viewport').css('display', 'block');
     $('#status').css('visibility', 'hidden');
 }
@@ -87,6 +86,11 @@ function render_graph(data) {
 function populate_frag_chart(data) {
     if ('fragments' in data) {
         frag_chart = data.fragments;
+
+        $('#interval_txt').text(timestampToDate(frag_chart[0].start) +
+            ' - ' + timestampToDate(frag_chart[frag_chart.length-1].end));
+
+
         $('#next_frag_btn').click(function() {
             if (curr_frag < frag_chart.length-1) {
                 curr_frag++;
@@ -99,19 +103,15 @@ function populate_frag_chart(data) {
                 // graft
                 $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
                     '&user=' + encodeURIComponent(user) +
-                    '&from=' + frag_chart[curr_frag].start +
+                    '&from=' + frag_chart[0].start +
                     '&to=' + frag_chart[curr_frag].start).done(
-                    graft_fragment).fail(disp_error);
+                    merge_fragment).fail(disp_error);
             }
         });
 
         $('#prev_frag_btn').click(function() {
             if (curr_frag > 0) {
                 curr_frag--;
-                console.log('/tag_graph_data?tp=' + encodeURIComponent(tp) +
-                    '&user=' + encodeURIComponent(user) +
-                    '&from=' + frag_chart[0].start +
-                    '&to=' + frag_chart[curr_frag].start);
                 $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
                     '&user=' + encodeURIComponent(user) +
                     '&from=' + frag_chart[0].start +
@@ -190,8 +190,6 @@ function merge_fragment(data) {
         var old_node = sys.getNode(tag_obj.tag);
         if (old_node) {
             node_data.font_size = old_node.data.font_size;
-        } else {
-            console.log(tag_obj.tag);
         }
 
         branch.nodes[tag_obj.tag] = node_data;
