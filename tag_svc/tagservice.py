@@ -161,10 +161,10 @@ def get_worker_intervals(user_entity, register_date, weeks):
             start_i = bisect.bisect_right(weeks, date_floor)
             weeks_remaining = FRAGMENT_SIZE - frag_size
 
-            right_bound = weeks[min(len(weeks)-1, start_i+weeks_remaining-1)]
+            end_week = weeks[min(len(weeks)-1, start_i+weeks_remaining-1)]
 
-            result.append((weeks[start_i], right_bound, last_frag.key.id()))
-            date_floor = right_bound
+            result.append((weeks[start_i], end_week, last_frag.key.id()))
+            date_floor = end_week
 
     # get the first week after 'date_floor'
     start_i = bisect.bisect_right(weeks, date_floor)

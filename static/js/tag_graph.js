@@ -12,9 +12,6 @@ $('#tp_input').val(tp);
 $.getJSON('/tag_graph_data?tp=' + encodeURIComponent(tp) +
     '&user=' + encodeURIComponent(user)).done(render).fail(disp_error);
 
-$.getJSON('/user_fragments?user=' + encodeURIComponent(user)).done(
-    populate_frag_chart).fail(disp_error);
-
 function render(data, status, jqXHR) {
     var status_div = document.getElementById('status');
 
@@ -45,6 +42,8 @@ function render(data, status, jqXHR) {
             status_div.innerHTML = data.text;
         }
     } else {
+        $.getJSON('/fragment_chart?user=' + encodeURIComponent(user)).done(
+            populate_frag_chart).fail(disp_error);
         render_graph(data);
     }
 }

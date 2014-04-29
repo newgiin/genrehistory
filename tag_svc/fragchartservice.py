@@ -14,5 +14,5 @@ class UserFragmentService(TagService):
 
 
 app = webapp2.WSGIApplication([
-    ('/user_fragments', UserFragmentService)
+    ('/fragment_chart', UserFragmentService)
 ], debug=True)

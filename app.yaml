@@ -17,8 +17,8 @@ handlers:
 - url: /set_shout
   script: setshout.app
 
-- url: /user_fragments
-  script: tag_svc.userfragservice.app
+- url: /fragment_chart
+  script: tag_svc.fragchartservice.app
 
 - url: /worker
   script: tag_svc.tagworker.app

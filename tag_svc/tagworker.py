@@ -287,9 +287,14 @@ def store_user_data(user, tag_history, tag_graph, start, end, append_to):
                 old_graph[tag] = tag_graph[tag]
         graph_frag.end = end
         graph_frag.put()
+
+        # update end timestamp in user fragments chart
+        frag_info = next(frag_info for frag_info in user_entity.fragments
+                if frag_info['start'] == hist_frag.start)
+        frag_info['end'] = end
+
     else:
         user_entity.fragments.append({'start': start, 'end': end})
-        user_entity.put()
 
         if tag_history['weeks']:
             TagHistory(id=user+str(start), tag_history=tag_history,
@@ -298,6 +303,8 @@ def store_user_data(user, tag_history, tag_graph, start, end, append_to):
             TagGraph(id=user+str(start), tag_graph=tag_graph,
                 start=start, end=end,
                 parent=user_entity.key, namespace=DS_VERSION).put_async()
+
+    user_entity.put()
 
     return True
 
