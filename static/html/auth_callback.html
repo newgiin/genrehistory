@@ -1,0 +1,50 @@
+<html>
+<head>
+    <title>Last.fm authentication redirect</title>
+</head>
+<body>
+<div id="content">
+    Authenticating...
+    <br/><br/>
+    You will automatically be redirected on success.
+</div>
+
+<script type="text/javascript" src="/js/lib/md5.js"></script>
+<script type="text/javascript" src="/js/lastfm.js"></script>
+<script type="text/javascript">
+    var token = getParameterByName('token');
+    if (token == null) {
+        document.getElementByID('content').innerHTML = 'No token supplied!';
+    } else {
+        var lfm_api = new LastFM('24836bd9d7043e3c0bc65aa801ba8821',
+            '0df4b7481888ab8feb8a967e9f1ddd3b');
+        lfm_api.authorize(token, function(reply) {
+            if (reply.session) {
+                localStorage["session_key"] = reply.session.key;
+                localStorage["session_name"] = reply.session.name;
+
+                window.location = getUrlRoot() +
+                    '/history?user=' + reply.session.name;
+            } else {
+                document.getElementByID.innerHTML = 'Authentication failed ' +
+                        'with error: ' +
+                        '<a href="http://www.last.fm/api/show/auth.getSession">' +
+                        reply.error + '</a>';
+            }
+        });
+    }
+
+    function getParameterByName(name) {
+        name = name.replace(/[\[]/, '\\\[').replace(/[\]]/, '\\\]');
+        var regex = new RegExp('[\\?&]' + name + '=([^&#]*)'),
+            results = regex.exec(location.search);
+        return results == null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+
+    function getUrlRoot() {
+        return location.protocol + '//' +
+            location.hostname + (location.port ? ':' + location.port: '');
+    }
+</script>
+</body>
+</html>
