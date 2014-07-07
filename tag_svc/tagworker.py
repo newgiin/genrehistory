@@ -8,6 +8,7 @@ from google.appengine.ext import ndb
 from google.appengine.api import memcache, taskqueue
 from google.appengine.api.urlfetch_errors import DeadlineExceededError as \
     UrlFetchDeadlineExceededError
+from google.appengine.ext.db import TransactionFailedError
 import time
 import urllib
 import bisect
@@ -321,9 +322,13 @@ class TagWorker(webapp2.RequestHandler):
 
         try:
             _process_user(self.request, user, start, end, append_to)
-        except UrlFetchDeadlineExceededError as e:
-            logging.warning(e)
+        except UrlFetchDeadlineExceededError as udef:
+            logging.warning('UrlFetchDeadlineExceededError: %s', udef)
             self.error(500)
+        except TransactionFailedError as tfe:
+            logging.warning('TransactionFailedError: %s', tfe)
+            self.error(500)
+
 
 app = webapp2.WSGIApplication([
     ('/worker', TagWorker)
