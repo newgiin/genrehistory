@@ -322,7 +322,7 @@ class TagWorker(webapp2.RequestHandler):
 
         try:
             _process_user(self.request, user, start, end, append_to)
-        except UrlFetchDeadlineExceededError, TransactionFailedError as e:
+        except (UrlFetchDeadlineExceededError, TransactionFailedError) as e:
             logging.warning('%s: %s', e.__class__.__name__, e.message)
             self.error(500)
 
