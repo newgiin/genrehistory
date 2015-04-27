@@ -3,7 +3,7 @@ var LFM_API_KEY = '24836bd9d7043e3c0bc65aa801ba8821';
 var LFM_SECRET = '0df4b7481888ab8feb8a967e9f1ddd3b';
 var lfm_api = new LastFM(LFM_API_KEY, LFM_SECRET);
 
-var youtube_api = new Youtube('AI39si7jF5UfjKldRqlcQboZfiUb_t93M6YJ0nocNOwxisoHNQb7Ym54EzWadArRKF8BoEkc2AOAAddBI7t2xEcibrSeghbXyw');
+var youtube_api = new Youtube('AIzaSyAqijDaBOtDreE1fxMvhwUz2QsyopL-FHU');
 var ytplayer = null;
 var DEFAULT_VIDEO_ID = 'aYeIGnni5jU';
 
@@ -317,6 +317,25 @@ function set_player_songs(result, autoplay) {
     }
 }
 
+function parseIsoDuration(iso_duration) {
+    /**
+    * Convert an ISO8601 duration to seconds.
+    */
+    var reptms = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/;
+    var hours = 0, minutes = 0, seconds = 0, totalseconds;
+
+    if (reptms.test(iso_duration)) {
+        var matches = reptms.exec(iso_duration);
+        if (matches[1])
+            hours = Number(matches[1]);
+        if (matches[2])
+            minutes = Number(matches[2]);
+        if (matches[3])
+            seconds = Number(matches[3]);
+        return hours*3600  + minutes*60 + seconds;
+    }
+}
+
 function play_song(autoplay) {
     if (tracks.length > 0) {
         var track = get_song_to_play();
@@ -326,30 +345,36 @@ function play_song(autoplay) {
 
         youtube_api.search_videos(track.artist['#text'] + ' ' + track.name, 1,
             function(result) {
-                if (result.feed.entry && result.feed.entry.length > 0) {
-                    var video_id = result.feed.entry[0]['media$group']['yt$videoid']['$t'];
-                    var duration = parseInt(
-                        result.feed.entry[0]['media$group']['yt$duration']['seconds']);
+                if (result.items.length > 0) {
+                    var video_id = result.items[0].id.videoId;
 
-                    scrobbler.set_song(track.artist['#text'], null,
-                        track.name, duration);
-
-                    if (document.getElementById('mix_mode_toggle').checked) {
-                        var play_time = 60;
-                        var pt_txt = $('#mix_mode_interval').val();
-                        if ($.isNumeric(pt_txt) &&
-                                parseInt(pt_txt) > 0) {
-                            play_time = parseInt(pt_txt);
-                        }
-
-                        var start_time = duration*(Math.random()*0.40 + 0.30);
-                        ytplayer.loadVideoById({videoId: video_id,
-                            startSeconds: start_time,
-                            endSeconds: start_time + play_time});
-                    } else {
+                    if (!document.getElementById('mix_mode_toggle').checked) {
                         ytplayer.loadVideoById(video_id);
                     }
 
+                    if (document.getElementById('mix_mode_toggle').checked ||
+                            lfm_api.session.key != null) {
+                        youtube_api.video_details(video_id,
+                            function(result) {
+                                var duration = parseIsoDuration(result.items[0].contentDetails.duration);
+                                scrobbler.set_song(track.artist['#text'], null,
+                                    track.name, duration);                                
+                                if (document.getElementById('mix_mode_toggle').checked) {
+                                        var play_time = 60;
+                                        var pt_txt = $('#mix_mode_interval').val();
+                                        if ($.isNumeric(pt_txt) &&
+                                                parseInt(pt_txt) > 0) {
+                                            play_time = parseInt(pt_txt);
+                                        }
+
+                                        var start_time = duration*(Math.random()*0.40 + 0.30);
+                                        ytplayer.loadVideoById({videoId: video_id,
+                                            startSeconds: start_time,
+                                            endSeconds: start_time + play_time});
+                                }
+                            }
+                        );
+                    }
                     // TODO this doesn't always stop the video
                     if (!autoplay) {
                         ytplayer.stopVideo();

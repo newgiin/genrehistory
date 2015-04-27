@@ -1,33 +1,47 @@
 function Youtube(api_key) {
     this.API_KEY = api_key;
-    this.API_ROOT = 'https://gdata.youtube.com/feeds/api/videos';
+    this.API_ROOT = 'https://www.googleapis.com/youtube/v3';
 }
 
 /**
 * Returns 'max_results' videos matching 'query'.
 */
 Youtube.prototype.search_videos = function(query, max_results, callback) {
+    var rest_path = 'search';
     var params = {
+        'part': 'snippet',
         'q': query.replace('-',' ').replace('|', ' '), // ignore boolean operators
-        'max-results': max_results,
-        'v': 2,
-        'fields': 'entry(media:group(yt:videoid,yt:duration))'
+        'maxResults': max_results,
+        'type': 'video'
     };
 
-    params.alt = 'json';
-    this._xhr('GET', params,
+    this._xhr('GET', rest_path, params,
         function(result) {
             callback(result);
         });
 }
 
-Youtube.prototype._xhr = function(method, params, callback) {
-    var uri = this.API_ROOT;
+Youtube.prototype.video_details = function(video_id, callback) {
+    var rest_path = 'videos';
+    var params = {
+        'part': 'contentDetails',
+        'id': video_id
+    };
+
+    this._xhr('GET', rest_path, params,
+        function(result) {
+            callback(result);
+        });
+}
+
+Youtube.prototype._xhr = function(method, rest_path, params, callback) {
+    var uri = this.API_ROOT + '/' + rest_path;
     var _data = '';
     var _params = [];
     var xhr = new XMLHttpRequest();
 
-    for(param in params) {
+    params['key'] = this.API_KEY;
+    for (param in params) {
         _params.push(encodeURIComponent(param) + '='
             + encodeURIComponent(params[param]));
     }
