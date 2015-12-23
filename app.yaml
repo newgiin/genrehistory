@@ -28,6 +28,10 @@ handlers:
   script: admin.app
   login: admin
 
+- url: /delete_user
+  script: admin.delete_user
+  login: admin
+
 # Static files mapped below
 - url: /history
   mime_type: text/html
