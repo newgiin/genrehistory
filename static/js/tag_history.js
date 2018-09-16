@@ -18,17 +18,32 @@ var scrobbler = new TimedScrobbler();
 var SCROBBLE_POLL_INTERVAL = 5;
 var scrobble_poll_id = null;
 
+
+// Load the IFrame Player API code asynchronously.
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/player_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+// Replace the 'ytplayer' element with an <iframe> and
+// YouTube player after the API code downloads.
+var ytplayer;
+function onYouTubePlayerAPIReady() {
+    ytplayer = new YT.Player('ytplayer', {
+      height: '200',
+      width: '300',
+      videoId: 'aYeIGnni5jU',
+      events: {
+        'onStateChange': onPlayerStateChange
+      }
+    });
+}
+
+
 $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
 $.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' +
         '&user=' + encodeURIComponent(user) + '&api_key=' + LFM_API_KEY +
         '&format=json').done(init_week_chart).fail(disp_error);
-
-// setup Youtube player
-var params = { allowScriptAccess: 'always' };
-var atts = { id: 'ytplayer' };
-swfobject.embedSWF('http://www.youtube.com/v/aYeIGnni5jU?enablejsapi=1&playerapiid=ytplayer' +
-                    '&version=3&fs=0&iv_load_policy=0&rel=0',
-                   'ytplayer', '300', '200', '8', null, null, params, atts);
 
 // bindings
 $('#user_input').val(user);
@@ -358,7 +373,7 @@ function play_song(autoplay) {
                             function(result) {
                                 var duration = parseIsoDuration(result.items[0].contentDetails.duration);
                                 scrobbler.set_song(track.artist['#text'], null,
-                                    track.name, duration);                                
+                                    track.name, duration);
                                 if (document.getElementById('mix_mode_toggle').checked) {
                                         var play_time = 60;
                                         var pt_txt = $('#mix_mode_interval').val();
@@ -378,6 +393,8 @@ function play_song(autoplay) {
                     // TODO this doesn't always stop the video
                     if (!autoplay) {
                         ytplayer.stopVideo();
+                    } else {
+                        ytplayer.playVideo();
                     }
                 } else {
                     // video not found, get next song to play from this week
@@ -419,13 +436,8 @@ function get_song_to_play() {
     return track;
 }
 
-function onYouTubePlayerReady(playerId) {
-    ytplayer = document.getElementById('ytplayer');
-    ytplayer.addEventListener('onStateChange', 'onPlayerStateChange');
-}
-
-function onPlayerStateChange(newState) {
-    if (newState === 0) { // video ended
+function onPlayerStateChange(event) {
+    if (event.data == YT.PlayerState.ENDED) {
         var direction = parseInt(
             $('#options_form input[name=song_end_action]:checked').val());
         if (direction < 0) {

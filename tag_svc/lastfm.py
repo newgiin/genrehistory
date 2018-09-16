@@ -121,7 +121,6 @@ class LastFm:
 
         if result.status_code != 200:
             return {'error': 'urlfetch error: ' + str(result.status_code)}
-
         result = json.loads(result.content)
 
         if 'error' in result:
