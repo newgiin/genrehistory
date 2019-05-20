@@ -3,7 +3,7 @@ var LFM_API_KEY = '24836bd9d7043e3c0bc65aa801ba8821';
 var LFM_SECRET = '0df4b7481888ab8feb8a967e9f1ddd3b';
 var lfm_api = new LastFM(LFM_API_KEY, LFM_SECRET);
 
-var youtube_api = new Youtube('AIzaSyAqijDaBOtDreE1fxMvhwUz2QsyopL-FHU');
+var youtube_api = new Youtube('AIzaSyA1L3OYJprfOKwfT7fKinhfOYf50ZQ_SGI');
 var DEFAULT_VIDEO_ID = 'aYeIGnni5jU';
 
 var tracks = [];
@@ -20,7 +20,7 @@ var scrobble_poll_id = null;
 
 // Load the IFrame Player API code asynchronously.
 var tag = document.createElement('script');
-tag.src = "https://www.youtube.com/player_api";
+tag.src = "https://www.youtube.com/iframe_api";
 var firstScriptTag = document.getElementsByTagName('script')[0];
 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
@@ -40,7 +40,7 @@ function onYouTubePlayerAPIReady() {
 
 
 $.getJSON('/history_data?user=' + encodeURIComponent(user)).done(render).fail(disp_error);
-$.getJSON('http://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' +
+$.getJSON('https://ws.audioscrobbler.com/2.0/?method=user.getweeklychartlist' +
     '&user=' + encodeURIComponent(user) + '&api_key=' + LFM_API_KEY +
     '&format=json').done(init_week_chart).fail(disp_error);
 

@@ -14,7 +14,7 @@
 function LastFM(api_key, api_secret) {
   this.API_KEY = api_key || '';
   this.API_SECRET = api_secret || '';
-  this.API_ROOT = 'http://ws.audioscrobbler.com/2.0/';
+  this.API_ROOT = 'https://ws.audioscrobbler.com/2.0/';
   this.session = {};
 }
 
