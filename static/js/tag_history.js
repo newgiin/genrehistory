@@ -3,7 +3,7 @@ var LFM_API_KEY = '24836bd9d7043e3c0bc65aa801ba8821';
 var LFM_SECRET = '0df4b7481888ab8feb8a967e9f1ddd3b';
 var lfm_api = new LastFM(LFM_API_KEY, LFM_SECRET);
 
-var youtube_api = new Youtube('AIzaSyA1L3OYJprfOKwfT7fKinhfOYf50ZQ_SGI');
+var youtube_api = new Youtube('AIzaSyDaG9dsAsiZOxk435fdqvWhotgSqaKQq5U');
 var DEFAULT_VIDEO_ID = 'aYeIGnni5jU';
 
 var tracks = [];
@@ -253,7 +253,13 @@ function render_chart(data) {
           }
         }
       }
-    }
+    },
+    legend: {
+      borderColor: "#DDDDDD",
+      borderWidth: 1,
+      borderRadius: 5,
+      maxHeight: 100
+     }
   });
 
   $('#showall_btn').click(function() {
